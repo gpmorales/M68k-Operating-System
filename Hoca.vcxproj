@@ -89,7 +89,8 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <CompileAs>CompileAsC</CompileAs>
-      <AdditionalIncludeDirectories>Yes</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+      </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -105,7 +106,8 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <CompileAs>CompileAsC</CompileAs>
-      <AdditionalIncludeDirectories>Yes</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+      </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -121,7 +123,8 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <CompileAs>CompileAsC</CompileAs>
-      <AdditionalIncludeDirectories>Yes</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+      </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -137,7 +140,8 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <CompileAs>CompileAsC</CompileAs>
-      <AdditionalIncludeDirectories>Yes</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>
+      </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,24 +151,24 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Header\asl.h" />
-    <ClInclude Include="Header\const.h" />
-    <ClInclude Include="Header\procq.h" />
-    <ClInclude Include="Notes\Exceptions.h" />
+    <ClInclude Include="h\asl.h" />
+    <ClInclude Include="h\const.h" />
+    <ClInclude Include="h\procq.h" />
+    <ClInclude Include="notes\Exceptions.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Header\types.h" />
-    <ClCompile Include="Notes\ActiveSemaphores.h" />
-    <ClCompile Include="Notes\Intro.h" />
-    <ClCompile Include="Notes\OperatingSystems101.h" />
-    <ClCompile Include="Notes\Processes.h" />
-    <ClCompile Include="Queues\asl.c" />
-    <ClCompile Include="Queues\p1test.c" />
-    <ClCompile Include="Queues\procq.c" />
+    <ClCompile Include="h\types.h" />
+    <ClCompile Include="notes\ActiveSemaphores.h" />
+    <ClCompile Include="notes\Intro.h" />
+    <ClCompile Include="notes\OperatingSystems101.h" />
+    <ClCompile Include="notes\Processes.h" />
+    <ClCompile Include="queues\asl.c" />
+    <ClCompile Include="queues\p1test.c" />
+    <ClCompile Include="queues\procq.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Header\asl.e" />
-    <None Include="Header\procq.e" />
+    <None Include="h\asl.e" />
+    <None Include="h\procq.e" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
