@@ -1,0 +1,73 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="notes">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="nucleus">
+      <UniqueIdentifier>{03c3400a-cc9f-4d0c-8cb0-94d532511d5e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="queues">
+      <UniqueIdentifier>{a1fb1d67-23ec-4b2f-a819-7b3b61ddf9fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="support">
+      <UniqueIdentifier>{544e153d-4387-465e-87a9-8a6a779997e1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{9283301c-f0b8-4fc9-ac14-7fb3df0ac0ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="h">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Header\procq.h">
+      <Filter>h</Filter>
+    </ClInclude>
+    <ClInclude Include="Header\const.h">
+      <Filter>h</Filter>
+    </ClInclude>
+    <ClInclude Include="Header\asl.h">
+      <Filter>h</Filter>
+    </ClInclude>
+    <ClInclude Include="Notes\Exceptions.h">
+      <Filter>notes</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Notes\Intro.h">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="Notes\OperatingSystems101.h">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="Notes\Processes.h">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="Queues\procq.c">
+      <Filter>queues</Filter>
+    </ClCompile>
+    <ClCompile Include="Header\types.h">
+      <Filter>h</Filter>
+    </ClCompile>
+    <ClCompile Include="Notes\ActiveSemaphores.h">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="Queues\asl.c">
+      <Filter>queues</Filter>
+    </ClCompile>
+    <ClCompile Include="Queues\p1test.c">
+      <Filter>tests</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Header\procq.e">
+      <Filter>h</Filter>
+    </None>
+    <None Include="Header\asl.e">
+      <Filter>h</Filter>
+    </None>
+  </ItemGroup>
+</Project>

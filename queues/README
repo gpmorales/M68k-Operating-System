@@ -1,0 +1,30 @@
+p1test.c tests the the queue and the asl modules using
+the proc_link type.
+
+p1test.c.queues tests the queue modules, it does not test 
+the asl modules.
+
+p1test2.c will insert a process into several queues, 
+and it will remove it and test the results.
+
+If your OS or function finds an error condition that
+it cannot handle or recover from, it should panic
+(stop the simulator).  Please look at the adderrbuf
+function in p1test.c.  if an error condition is 
+found, it copies an error message to an error buffer
+and issues this command:  asm("   trap    #0");
+The "trap 0" will halt the simulator.  You may want
+to use the following panic routine:
+
+char myerrbuf[128];
+
+panic(s)
+register char *s;
+{
+	register char *i=myerrbuf;
+
+	while ((*i++ = *s++) != '\0')
+		;
+
+	asm("  trap    #0");  /* stop the simulator */
+}

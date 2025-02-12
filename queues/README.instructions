@@ -1,0 +1,72 @@
+
+                              INSTRUCTIONS
+
+
+Compilation:
+
+  type "make", your programs should be compiled and linked.
+
+Execution:
+  You need to use emacsim (a source code debugger) to check the
+  execution of your program.  You cannot put any printf
+  statements in p1test.c.
+
+  If you have not used emacsim before, there is an online version
+  of the gdb 3.4 manual in PostScript format here:
+
+  /home/cs580000/share/hoca/documentation/gdb-manual.ps
+
+  Please use a PS viewer, for example "evince" to view this manual.
+
+  The emacsim steps that you should follow are the following:
+  1.  list the source program
+  2.  set a breakpoint
+  3.  run the program.
+  4.  when emacsim stops, display arrays or variables
+
+  Here is an example of a session:
+
+%emacsim p1test
+GDB is free software and you are welcome to distribute copies of it
+ under certain conditions; type "show copying" to see the conditions.
+There is absolutely no warranty for GDB; type "show warranty" for details.
+GDB 4.7, Copyright 1992 Free Software Foundation, Inc...
+(emacsim) l 168
+163		if (headBlocked(&sem[9]) != (proc_t *) NULL)
+164			adderrbuf("out/headBlocked: unexpected nonempty queue   ");
+165		addokbuf("headBlocked and outBlocked ok   ");
+166		addokbuf("ASL module ok   ");
+167		addokbuf("Successful mission Captain Kirk");
+168	}
+169	
+170	
+171	addokbuf(sp)
+172	register char *sp;
+(emacsim) b 168
+Breakpoint 1 at 0x115a4: file p1test.c, line 168.
+(emacsim) c 
+
+Breakpoint 1, main () at p1test.c:168
+168	}
+(emacsim) set print elements 0
+(emacsim) p okbuf
+$1 = {"Initialized process queues   allocProc ok   freed 10 entries   Inserting...   inserted 10 elements   outProc ok   Removing...   insertProc and removeProc ok   process queue module ok      Initialized "...}
+(emacsim) p okbuf[200]@200
+$2 = {"semaphore list   insertBlocked and removeBlocked ok   headBlocked and outBlocked ok   ASL module ok   Successful mission Captain Kirk", '\000' <repeats 67 times>}
+(emacsim) 
+
+Please note that if you have a bug, that gdb is a very useful tool
+that will help you find the problem.  You can single step thru
+your code using "step" or "next".
+---------------------------------------------------------------------
+
+If you have compilation/execution questions, please contact the TA: 
+
+adrian.gushin@emory.edu
+
+Office Hours: TBD
+
+
+At other times by appointment.
+
+
