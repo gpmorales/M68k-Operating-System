@@ -13,6 +13,7 @@ typedef struct proc_t {
 	state_t p_s;				/* processor state of the process */
 	int qcount;					/* number of queues containing this entry */
 	int* semvec[SEMMAX];		/* vector of active semaphores for this entry */
+	int processor_time;			/* amount of time this proc will get on the CPU */
 	/*
 		other entries defined by me
 	*/

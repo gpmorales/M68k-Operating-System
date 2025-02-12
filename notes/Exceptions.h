@@ -116,11 +116,17 @@
 	- Timesharing is a computing technique that allows multiple users or programs to apparently run simultaneously by rapidly switching the CPU between
 	  different processes, giving each one short bursts of processing time rather than letting each process run to completion.
 	- Ideally interactive devices like the terminal, keyboard, and mouse
-	- TODO 
 
 
+	<--- Memory Management Traps --->
+	Memory management traps occur when a program attempts illegal memory operations like:
+	  - Accessing restricted memory areas
+	  - Page faults (accessing memory not currently in physical RAM)
+	  - Stack overflow/underflow
+	  - Segmentation violations
 
-
+	The OS catches these traps and handles them appropriately - either by loading required memory
+	pages or terminating the program if the access was invalid.
 
 
 
