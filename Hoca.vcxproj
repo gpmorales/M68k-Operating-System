@@ -154,6 +154,8 @@
     <ClInclude Include="h\asl.h" />
     <ClInclude Include="h\const.h" />
     <ClInclude Include="h\procq.h" />
+    <ClInclude Include="h\util.h" />
+    <ClInclude Include="h\vpop.h" />
     <ClInclude Include="notes\Exceptions.h" />
   </ItemGroup>
   <ItemGroup>
@@ -162,13 +164,27 @@
     <ClCompile Include="notes\Intro.h" />
     <ClCompile Include="notes\OperatingSystems101.h" />
     <ClCompile Include="notes\Processes.h" />
+    <ClCompile Include="nucleus\interrupts\int.c" />
+    <ClCompile Include="nucleus\NucleasPart1.c" />
+    <ClCompile Include="nucleus\traps\main.c" />
+    <ClCompile Include="nucleus\traps\p1.c" />
+    <ClCompile Include="nucleus\traps\syscall.c" />
+    <ClCompile Include="nucleus\traps\trap.c" />
     <ClCompile Include="queues\asl.c" />
     <ClCompile Include="queues\p1test.c" />
+    <ClCompile Include="queues\p1test2.c" />
     <ClCompile Include="queues\procq.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e" />
     <None Include="h\procq.e" />
+    <None Include="queues\Makefile" />
+    <None Include="queues\p1test.c.queues" />
+    <None Include="queues\README" />
+    <None Include="queues\README.instructions" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="notes\Scheduling.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

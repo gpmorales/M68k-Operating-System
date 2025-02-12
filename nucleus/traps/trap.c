@@ -24,6 +24,6 @@
 
 		- void static trapmmhandler():
 		- void static trapproghandler():
-		- Thes functions will pass up memory management and program traps the process.
+		- Thes functions will pass up memory management and program traps OR terminate the process.
 
 */

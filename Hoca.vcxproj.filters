@@ -14,12 +14,15 @@
     <Filter Include="support">
       <UniqueIdentifier>{544e153d-4387-465e-87a9-8a6a779997e1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests">
-      <UniqueIdentifier>{9283301c-f0b8-4fc9-ac14-7fb3df0ac0ab}</UniqueIdentifier>
-    </Filter>
     <Filter Include="h">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="nucleus\traps">
+      <UniqueIdentifier>{e162f71c-6ba9-41c6-b344-0ae8edb69069}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="nucleus\interrupts">
+      <UniqueIdentifier>{afe8195d-8cf1-4e24-b102-276c794ba8c7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -33,6 +36,12 @@
       <Filter>h</Filter>
     </ClInclude>
     <ClInclude Include="h\procq.h">
+      <Filter>h</Filter>
+    </ClInclude>
+    <ClInclude Include="h\util.h">
+      <Filter>h</Filter>
+    </ClInclude>
+    <ClInclude Include="h\vpop.h">
       <Filter>h</Filter>
     </ClInclude>
   </ItemGroup>
@@ -55,15 +64,57 @@
     <ClCompile Include="Queues\asl.c">
       <Filter>queues</Filter>
     </ClCompile>
-    <ClCompile Include="Queues\p1test.c">
-      <Filter>tests</Filter>
-    </ClCompile>
     <ClCompile Include="h\types.h">
       <Filter>h</Filter>
     </ClCompile>
+    <ClCompile Include="queues\p1test2.c">
+      <Filter>queues</Filter>
+    </ClCompile>
+    <ClCompile Include="queues\p1test.c">
+      <Filter>queues</Filter>
+    </ClCompile>
+    <ClCompile Include="nucleus\NucleasPart1.c">
+      <Filter>nucleus</Filter>
+    </ClCompile>
+    <ClCompile Include="nucleus\traps\main.c">
+      <Filter>nucleus\traps</Filter>
+    </ClCompile>
+    <ClCompile Include="nucleus\traps\trap.c">
+      <Filter>nucleus\traps</Filter>
+    </ClCompile>
+    <ClCompile Include="nucleus\traps\syscall.c">
+      <Filter>nucleus\traps</Filter>
+    </ClCompile>
+    <ClCompile Include="nucleus\interrupts\int.c">
+      <Filter>nucleus\interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="nucleus\traps\p1.c">
+      <Filter>nucleus\traps</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="h\asl.e" />
-    <None Include="h\procq.e" />
+    <None Include="h\asl.e">
+      <Filter>h</Filter>
+    </None>
+    <None Include="h\procq.e">
+      <Filter>h</Filter>
+    </None>
+    <None Include="queues\Makefile">
+      <Filter>queues</Filter>
+    </None>
+    <None Include="queues\p1test.c.queues">
+      <Filter>queues</Filter>
+    </None>
+    <None Include="queues\README">
+      <Filter>queues</Filter>
+    </None>
+    <None Include="queues\README.instructions">
+      <Filter>queues</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="notes\Scheduling.h">
+      <Filter>notes</Filter>
+    </Text>
   </ItemGroup>
 </Project>
