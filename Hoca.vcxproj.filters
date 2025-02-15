@@ -111,6 +111,9 @@
     <None Include="queues\README.instructions">
       <Filter>queues</Filter>
     </None>
+    <None Include="h\trap.e">
+      <Filter>h</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="notes\Scheduling.h">

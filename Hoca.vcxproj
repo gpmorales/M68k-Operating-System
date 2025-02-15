@@ -178,6 +178,7 @@
   <ItemGroup>
     <None Include="h\asl.e" />
     <None Include="h\procq.e" />
+    <None Include="h\trap.e" />
     <None Include="queues\Makefile" />
     <None Include="queues\p1test.c.queues" />
     <None Include="queues\README" />

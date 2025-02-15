@@ -3,6 +3,10 @@
     George Morales
 */
 
+#include "../../h/util.h"
+#include "../../h/trap.e"
+#include "../../h/const.h"				
+#include "../../h/types.h"				
 #include "stdio.h"
 
 /*
@@ -21,9 +25,64 @@
 			NOTE: During init() I will map EVT trap numbers (32-47) to their corresponding SYS functions. 
 			The tmp_sys.sys_no field will hold that trap number, letting the kernel know which SYS function (SYS1-SYS7) to execute.
 
-
 		- void static trapmmhandler():
 		- void static trapproghandler():
-		- Thes functions will pass up memory management and program traps OR terminate the process.
+		These functions will pass up memory management and program traps OR terminate the process.
 
 */
+
+void trapinit()
+{
+	// Populate EVT with function addresses
+	*((int*)0x014) = (int)STLDMM;
+	*((int*)0x00c) = (int)STLDADDRESS();		   
+	*((int*)0x010) = (int)STLDILLEGAL();		   
+	*((int*)0x014) = (int)STLDZERO();			   
+	*((int*)0x020) = (int)STLDPRIVILEGE();		   
+	*((int*)0x08c) = (int)STLDSYS();			   
+	*((int*)0x94 ) = (int)STLDSYS9();			   
+	*((int*)0x98 ) = (int)STLDSYS10();			   
+	*((int*)0x9c ) = (int)STLDSYS11();			   
+	*((int*)0xa0 ) = (int)STLDSYS12();			   
+	*((int*)0xa4 ) = (int)STLDSYS13();			   
+	*((int*)0xa8 ) = (int)STLDSYS14();			   
+	*((int*)0xac ) = (int)STLDSYS15();			   
+	*((int*)0xb0 ) = (int)STLDSYS16();			   
+	*((int*)0xb4 ) = (int)STLDSYS17();			   
+	*((int*)0x100) = (int)STLDTERM0();			   
+	*((int*)0x104) = (int)STLDTERM1();			   
+	*((int*)0x108) = (int)STLDTERM2();			   
+	*((int*)0x10c) = (int)STLDTERM3();			   
+	*((int*)0x110) = (int)STLDTERM4();			   
+	*((int*)0x114) = (int)STLDPRINT0();		    
+	*((int*)0x11c) = (int)STLDDISK0();
+	*((int*)0x12c) = (int)STLDFLOPPY0();
+	*((int*)0x140) = (int)STLDCLOCK();
+
+	// Allocate New and Old State Areas for Program Traps
+	state_t* prog_old_state = (state_t*)0x800;		// 76 bytes
+	state_t* prog_new_state = prog_old_state + 1;   // Offset for New State area
+	prog_new_state->s_sr.ps_int = 7; 				// All interrupts disabled for process trap handler
+	prog_new_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
+	prog_new_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
+	// TODO
+	prog_new_state->s_pc = NULL;	 				// The address for this specific handler
+
+	// Allocate New and Old State Areas for Memory Management Traps
+	state_t* mm_old_state = (state_t*)0x898;	    // 76 bytes
+	state_t* mm_new_state = mm_old_state + 1;       // Offset for New State area
+	prog_new_state->s_sr.ps_int = 7; 				// All interrupts disabled for mm trap handler
+	prog_new_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
+	prog_new_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
+	// TODO
+	mm_new_state->s_pc = NULL;						// The address for this specific handler
+
+	// Allocate New and Old State Areas for SYS call traps
+	state_t* sys_old_state = (state_t*)0x930; // 76 bytes
+	state_t* sys_new_state = sys_old_state + 1; // Offset for New State area
+	sys_new_state->s_sr.ps_int = 7; 				// All interrupts disabled for mm trap handler
+	sys_new_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
+	sys_new_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
+	// TODO
+	sys_new_state->s_pc = NULL; // The address for this specific handler
+}
