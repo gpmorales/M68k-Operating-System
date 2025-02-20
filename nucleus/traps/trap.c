@@ -3,10 +3,11 @@
     George Morales
 */
 
-#include "../../h/util.h"
-#include "../../h/trap.e"
-#include "../../h/const.h"				
+#include "../../h/syscall.e"				
 #include "../../h/types.h"				
+#include "../../h/const.h"				
+#include "../../h/trap.e"
+#include "../../h/util.h"
 #include "stdio.h"
 
 /*
@@ -22,8 +23,8 @@
 		This function handles 9 different traps. It has a switch statment and each case calls a function.
 		Two of the functions, waitforpclock() and waitforio() are in int.c The other secen are in syscall.c
 
-			NOTE: During init() I will map EVT trap numbers (32-47) to their corresponding SYS functions. 
-			The tmp_sys.sys_no field will hold that trap number, letting the kernel know which SYS function (SYS1-SYS7) to execute.
+		NOTE: During init() I will map EVT trap numbers (32-47) to their corresponding SYS functions. 
+		The tmp_sys.sys_no field will hold that trap number, letting the kernel know which SYS function (SYS1-SYS7) to execute.
 
 		- void static trapmmhandler():
 		- void static trapproghandler():
@@ -77,12 +78,76 @@ void trapinit()
 	// TODO
 	mm_new_state->s_pc = NULL;						// The address for this specific handler
 
-	// Allocate New and Old State Areas for SYS call traps
-	state_t* sys_old_state = (state_t*)0x930; // 76 bytes
-	state_t* sys_new_state = sys_old_state + 1; // Offset for New State area
+	// Allocate New and Old State Trap Areas for SYS call traps
+	state_t* sys_old_state = (state_t*)0x930;		// 76 bytes
+	state_t* sys_new_state = sys_old_state + 1;		// Offset for New State area
 	sys_new_state->s_sr.ps_int = 7; 				// All interrupts disabled for mm trap handler
 	sys_new_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
 	sys_new_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
 	// TODO
 	sys_new_state->s_pc = NULL; // The address for this specific handler
 }
+
+
+// This function handles 9 different traps. It has a switch statment and each case calls a function.
+// Two of the functions, waitforpclock() and waitforio() are in int.c The other seven are in syscall.c
+void static trapsyshandler() 
+{
+	state_t* current_state;
+
+	// Capture the current processor state when handling the 
+	STST(&current_state); 
+
+	// Verify that the invoking process is in supervisor mode
+	if (current_state->s_sr.ps_m == 0) {
+		// Get Program Trap Area address
+		state_t* program_trap_old_state = (state_t*)0x800; 
+
+		// Save the new state in the Program Trap's New Area State
+		state_t* privilege_violation_state = program_trap_old_state + 1;
+
+		// Save the process state in the Program Trap's Old Area State
+		// the content for which the old state var holds should be the current state data
+		*program_trap_old_state = *current_state;
+
+		privilege_violation_state->s_sr.ps_int = 7; 				// All interrupts disabled for mm trap handler
+		privilege_violation_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
+		privilege_violation_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
+		privilege_violation_state->s_sp = ((int)0x0020);			// Set PC to the STLDPRIVILEGE function address
+
+		// Trigger the privilege violation trap and invoke corresponding handler on LDST
+		LDST(&privilege_violation_state);
+	}
+
+	// If in supervisor mode, call proper SYS handler function 
+
+	// Get System Trap Area address
+	state_t* system_trap_old_state = (state_t*)0x930; 
+
+	// Save the process state in the System Trap's Old Area State
+	*system_trap_old_state = *current_state;
+
+	switch (current_state->s_tmp.tmp_sys.sys_no) {
+		case (1):
+			createproc(system_trap_old_state);
+			break;
+		case (2):
+			killproc(system_trap_old_state);
+			break;
+		case (3):
+			semop(system_trap_old_state);
+			break;
+		case (4):
+			notused(system_trap_old_state);
+			break;
+		case (5):
+			trapstate(system_trap_old_state);
+			break;
+		case (6):
+			getcputime(system_trap_old_state);
+			break;
+	}
+
+}
+
+
