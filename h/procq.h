@@ -14,6 +14,13 @@ typedef struct proc_t {
 	int qcount;					/* number of queues containing this entry */
 	int* semvec[SEMMAX];		/* vector of active semaphores for this entry */
 	int processor_time;			/* amount of time this proc will get on the CPU */
+
+	state_t* prog_trap_new_state;  /* Holds the address for a full state_t structure 
+								    	containing the actual handler specifics, including the PC
+										for the handler routine captured from D4 in Sys5 */
+	state_t* sys_trap_new_state; 
+	state_t* mm_trap_new_state; 
+
 	/*
 		other entries defined by me
 	*/

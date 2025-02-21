@@ -6,7 +6,6 @@
 #include "../../h/procq.e"				
 #include "../../h/trap.e"				
 #include "../../h/asl.e"				
-#include "stdio.h"
 
 extern int p1();
 

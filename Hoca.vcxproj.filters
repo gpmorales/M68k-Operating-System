@@ -117,6 +117,9 @@
     <None Include="h\syscall.e">
       <Filter>h</Filter>
     </None>
+    <None Include="h\main.e">
+      <Filter>h</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="notes\Scheduling.h">
