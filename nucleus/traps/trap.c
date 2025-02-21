@@ -14,30 +14,30 @@
 	This module handles the traps, it has the following static functions:
 	trapinit(), trap-syshandler(), trapmmhandler(), and trapproghandler()
 
-		- void trapinit(): 
-		Populates the Exception Vector Table entries and allocates memory for each exception handler, storing their addresses in the EVT.
-		When traps occur, the control flow is transferred via the Trap State Vector which saves the old processor state and 
-		loads the new processor state's address from the EVT.
+	- void trapinit(): 
+	Populates the Exception Vector Table entries and allocates memory for each exception handler, storing their addresses in the EVT.
+	When traps occur, the control flow is transferred via the Trap State Vector which saves the old processor state and 
+	loads the new processor state's address from the EVT.
 
-		- void static trapsyshandler():
-		This function handles 9 different traps. It has a switch statment and each case calls a function.
-		Two of the functions, waitforpclock() and waitforio() are in int.c The other secen are in syscall.c
+	- void static trapsyshandler():
+	This function handles 9 different traps. It has a switch statment and each case calls a function.
+	Two of the functions, waitforpclock() and waitforio() are in int.c The other secen are in syscall.c
 
-		NOTE: During init() I will map EVT trap numbers (32-47) to their corresponding SYS functions. 
-		The tmp_sys.sys_no field will hold that trap number, letting the kernel know which SYS function (SYS1-SYS7) to execute.
+	NOTE: During init() I will map EVT trap numbers (32-47) to their corresponding SYS functions. 
+	The tmp_sys.sys_no field will hold that trap number, letting the kernel know which SYS function (SYS1-SYS7) to execute.
 
-		- void static trapmmhandler():
-		- void static trapproghandler():
-		These functions will pass up memory management and program traps OR terminate the process.
+	- void static trapmmhandler():
+	- void static trapproghandler():
+	These functions will pass up memory management and program traps OR terminate the process.
 */
 
-state_t* prog_trap_old_state;
-state_t* sys_trap_old_state;
-state_t* mm_trap_old_state;
+state_t* PROG_TRAP_OLD_STATE;
+state_t* SYS_TRAP_OLD_STATE;
+state_t* MM_TRAP_OLD_STATE;
 
 void trapinit()
 {
-	// Populate EVT with function addresses
+	// Populate EVT with function addresses (Physical addresses from 0 to 0x800)
 	*((int*)0x014) = (int)STLDMM;
 	*((int*)0x00c) = (int)STLDADDRESS();		   
 	*((int*)0x010) = (int)STLDILLEGAL();		   
@@ -64,156 +64,145 @@ void trapinit()
 	*((int*)0x140) = (int)STLDCLOCK();
 
 	// Allocate New and Old State Areas for Program Traps
-	prog_trap_old_state = (state_t*)0x800;					  // 76 bytes
-	state_t* prog_trap_new_state = prog_trap_old_state + 1;   // Offset for New State area
-	STST(&prog_trap_old_state);								  // Initialize the Old State area at startup by populating the 76-byte state_t struct used for prog trap handling
-	prog_trap_new_state->s_sr.ps_int = 7; 				      // All interrupts disabled for process trap handler
-	prog_trap_new_state->s_sr.ps_s = 0;	 				      // Set memory management to physical addressing (no process virutalization)
-	prog_trap_new_state->s_sr.ps_m = 1;   				      // Switch to Supervisor Mode
-	prog_trap_new_state->s_pc = (int)trapproghandler;	      // The address for this specific handler
+	PROG_TRAP_OLD_STATE = (state_t*)0x800;					  // Set pointer to address in Memory -> 76 bytes
+	state_t* PROG_TRAP_NEW_STATE = PROG_TRAP_OLD_STATE + 1;   // Offset for New State area
+	STST(&PROG_TRAP_OLD_STATE);								  // Initialize the Old State area on startup by populating the 76-byte state_t struct used for prog trap handling
+	PROG_TRAP_NEW_STATE->s_sr.ps_int = 7; 				      // All interrupts disabled for process trap handler
+	PROG_TRAP_NEW_STATE->s_sr.ps_s = 0;	 				      // Set memory management to physical addressing (no process virutalization)
+	PROG_TRAP_NEW_STATE->s_sr.ps_m = 1;   				      // Switch to Supervisor Mode
+	PROG_TRAP_NEW_STATE->s_pc = (int)trapproghandler;	      // The address for this specific handler
 
 	// Allocate New and Old State Areas for Memory Management Traps
-	mm_trap_old_state = (state_t*)0x898;					  // 76 bytes
-	state_t* mm_trap_new_state = mm_trap_old_state + 1;       // Offset for New State area
-	STST(&mm_trap_old_state);								  // Initialize the Old State area at startup by populating the 76-byte state_t struct used for mm trap handling
-	mm_trap_new_state->s_sr.ps_int = 7; 					  // All interrupts disabled for mm trap handler
-	mm_trap_new_state->s_sr.ps_s = 0;	 				      // Set memory management to physical addressing (no process virutalization)
-	mm_trap_new_state->s_sr.ps_m = 1;   					  // Switch to Supervisor Mode
-	mm_trap_new_state->s_pc = (int)trapmmhandler;	          // The address for this specific handler
+	MM_TRAP_OLD_STATE = (state_t*)0x898;					  // Set pointer to address in Memory -> 76 bytes
+	state_t* MM_TRAP_NEW_STATE = MM_TRAP_OLD_STATE + 1;       // Offset for New State area
+	STST(&MM_TRAP_OLD_STATE);								  // Initialize the Old State area on startup by populating the 76-byte state_t struct used for mm trap handling
+	MM_TRAP_NEW_STATE->s_sr.ps_int = 7; 					  // All interrupts disabled for mm trap handler
+	MM_TRAP_NEW_STATE->s_sr.ps_s = 0;	 				      // Set memory management to physical addressing (no process virutalization)
+	MM_TRAP_NEW_STATE->s_sr.ps_m = 1;   					  // Switch to Supervisor Mode
+	MM_TRAP_NEW_STATE->s_pc = (int)trapmmhandler;	          // The address for this specific handler
 
 	// Allocate New and Old State Trap Areas for SYS Traps
-	sys_trap_old_state = (state_t*)0x930;					  // 76 bytes
-	state_t* sys_trap_new_state = sys_trap_old_state + 1;	  // Offset for New State area
-	STST(&sys_trap_old_state);								  // Initialize the Old State area at startup by populating the 76-byte state_t struct used for sys trap handling
-	sys_trap_new_state->s_sr.ps_int = 7; 				      // All interrupts disabled for mm trap handler
-	sys_trap_new_state->s_sr.ps_s = 0;	 				      // Set memory management to physical addressing (no process virutalization)
-	sys_trap_new_state->s_sr.ps_m = 1;   				      // Switch to Supervisor Mode
-	sys_trap_new_state->s_pc = (int)trapsyshandler;		      // The address for this specific handler
+	SYS_TRAP_OLD_STATE = (state_t*)0x930;					  // Set pointer to address in Memory -> 76 bytes
+	state_t* SYS_TRAP_NEW_STATE = SYS_TRAP_OLD_STATE + 1;	  // Offset for New State area
+	STST(&SYS_TRAP_OLD_STATE);								  // Initialize the Old State area on startup by populating the 76-byte state_t struct used for sys trap handling
+	SYS_TRAP_NEW_STATE->s_sr.ps_int = 7; 				      // All interrupts disabled for mm trap handler
+	SYS_TRAP_NEW_STATE->s_sr.ps_s = 0;	 				      // Set memory management to physical addressing (no process virutalization)
+	SYS_TRAP_NEW_STATE->s_sr.ps_m = 1;   				      // Switch to Supervisor Mode
+	SYS_TRAP_NEW_STATE->s_pc = (int)trapsyshandler;		      // The address for this specific handler
 }
 
 
 /*
-	Note that only instructions SYS1 to SYS8 are treated as instructions by the nucleus.
-	The other SYS instructions(SYS9 to SYS17) are passed up as SYS traps
+	When a trap/exception occurs, the hardware auto-saves the interrupted process state to the designated trap's old state area (0x800, 0x900, 0x930)
+	XX_TRAP_OLD_STATE -> state of the process when it causes Trap of type XX
+	XX_TRAP_NEW_STATE -> state of the handler process and its specifics to handler Trap of type XX
+
+	NOTE that only instructions SYS1 to SYS8 are treated as instructions by the nucleus (We define these routines).
+	The other SYS instructions(SYS9 to SYS17) are passed up as SYS traps.
 */
 void static trapsyshandler() 
 {
-	state_t* current_state;
+	// Grab the next avail process from the Ready Queue
+	proc_t* process = headQueue(ready_queue);
 
-	// Capture the current processor state
-	STST(&current_state); 
+	// *** Recall that on interruption due to a trap, the Hardware saves the CPUs processor state in the Global Trap Areas ***
 
-	// Verify that the invoking process is in supervisor mode and is a SYS call
-	if (current_state->s_sr.ps_m != 1 && current_state->s_tmp.tmp_sys.sys_no < 9) {
-		// Save the new state in the Program Trap's New Area State
-		state_t* privilege_violation_state = prog_trap_old_state + 1;
+	// Case where that the invoking process is in NOT supervisor mode and is a SYS call we handle
+	if (SYS_TRAP_OLD_STATE->s_sr.ps_m != 1 && SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no < 9) {
+		// No handler address in the PTE for this trap, kill the original process/state stored in PROG_TRAP_OLD_STATE
+		if (process->prog_trap_new_state == (proc_t*)ENULL) {
+			killproc(&PROG_TRAP_OLD_STATE);
+		}
 
-		// Save the process state in the Program Trap's Old Area State
-		*prog_trap_old_state = *current_state;
+		// Update the system trap old state struct prog trap type
+		SYS_TRAP_OLD_STATE->s_tmp.tmp_pr.pr_typ = PRIVILEGE;
 
-		privilege_violation_state->s_sr.ps_int = 7; 				// All interrupts disabled for mm trap handler
-		privilege_violation_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
-		privilege_violation_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
-		privilege_violation_state->s_sp = ((int)0x0020);			// Set PC to the STLDPRIVILEGE function address
+		// Save the processor's interrupted state in the process's Program Trap Old Area State Struct
+		*process->prog_trap_old_state = *PROG_TRAP_OLD_STATE;
 
-		// Trigger the privilege violation trap and invoke handler (does not return)
-		LDST(&privilege_violation_state);
+		// Load the new state struct and handler specifics stored in this process via its new state struct ptr (address set in SYS5)
+		LDST(&process->prog_trap_new_state);
 	}
 
-	// Save the process state in the System Trap's Old Area State
-	*sys_trap_old_state = *current_state;
-
-	switch (current_state->s_tmp.tmp_sys.sys_no) {
+	// For traps that require SYS calls 1- 6, we only need to use the Process's SYS old trap state struct to determine the exact handler needed
+	switch (SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no) {
 		case (1):
-			createproc(sys_trap_old_state);
+			createproc(SYS_TRAP_OLD_STATE);
 			break;
 		case (2):
-			killproc(sys_trap_old_state);
+			killproc(SYS_TRAP_OLD_STATE);
 			break;
 		case (3):
-			semop(sys_trap_old_state);
+			semop(SYS_TRAP_OLD_STATE);
 			break;
 		case (4):
-			notused(sys_trap_old_state);
+			notused(SYS_TRAP_OLD_STATE);
 			break;
 		case (5):
-			trapstate(sys_trap_old_state);
+			trapstate(SYS_TRAP_OLD_STATE);
 			break;
 		case (6):
-			getcputime(sys_trap_old_state);
+			getcputime(SYS_TRAP_OLD_STATE);
 			break;
 		default:
-			// Use the System Trap number to find the corresponding Handler Routine address to handle this case
-			pass_up_sys_trap(sys_trap_old_state);
+			// No handler address in the PTE for this trap, kill the original process/state stored in SYS_TRAP_OLD_STATE
+			if (process->sys_trap_new_state == (state_t*)ENULL) {
+				killproc(&SYS_TRAP_OLD_STATE);
+			}
+			// Copy the interrupted processor state struct captured on the SYS trap into the process's SYS-trap old state struct 
+			*process->sys_trap_old_state = *SYS_TRAP_OLD_STATE;
+
+			// Load the new process state and its handler specifics
+			LDST(&process->sys_trap_new_state);
 			break;
 	}
 
-	// Return flow to original process since these are legitmate kernel service request
-	LDST(&sys_trap_old_state);
+	// In the case where we handled the SYS trap with one of our own routines, we return the flow to the 
+	// original process whose state specific data is in the global sys_trap_old_state
+	LDST(&SYS_TRAP_OLD_STATE);
 }
 
 
 
 /*
-	Handle Memory Managment traps
+	Pass up Porgram trap or terminate the process
 */
 void static trapmmhandler() 
 {
-	// Capture the current processor state
-	state_t* current_state;
-	STST(&current_state); 
+	// Grab the next avail process from the Ready Queue
+	proc_t* process = headQueue(ready_queue);
 
-	// Save the current program state in MM Old Trap Area
-	*mm_trap_old_state = *current_state;
+	if (process->mm_trap_new_state != (state_t*)ENULL) {
+		// Copy the interrupted processor state struct captured on the MM trap into the process's MM-trap old state struct 
+		*process->mm_trap_old_state = *MM_TRAP_OLD_STATE;
 
-	// Prepare the new state
-	state_t* mm_trap_new_state = mm_trap_old_state + 1;
-	mm_trap_new_state->s_sr.ps_int = 7; 				// All interrupts disabled for mm trap handler
-	mm_trap_new_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
-	mm_trap_new_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
-	int mm_trap_handler = ((int)4 * current_state->s_tmp.tmp_pr.pr_typ);
-	mm_trap_new_state->s_pc = mm_trap_handler;
-
-	// Invoke mm trap handler
-	LDST(&mm_trap_new_state);
+		// Load the new state struct and handler specifics stored in this process via its new state struct ptr (address set in SYS5)
+		LDST(&process->mm_trap_new_state);
+	} else {
+		// No handler address in the PTE for this trap, kill the original process/state stored in MM_TRAP_OLD_STATE
+		killproc(&MM_TRAP_OLD_STATE);
+	}
 }
 
 
 /*
 	Pass up Memory Managment trap or terminate the process
-
-	TODO:
-	ARE we're keeping processes at the head of the queue while they execute,
-	only removing them when they terminate?
+	TODO: ARE we're keeping processes at the head of the queue while they execute, only removing them when they terminate????????
 */
 void static trapproghandler()
 {
 	// Grab the next avail process from the Ready Queue
 	proc_t* process = headQueue(ready_queue);
 
-	// Kill current process if CPU is starved
-	if (process == (proc_t*)ENULL) {
-		killproc(prog_trap_old_state);
+	if (process->prog_trap_new_state != (state_t*)ENULL) {
+		// Copy the interrupted processor state struct captured on the PROG trap into the process's PROG-trap old state struct 
+		*process->prog_trap_old_state = *PROG_TRAP_OLD_STATE;
+
+		// Load the new state struct and handler specifics stored in this process via its new state struct ptr (address set in SYS5)
+		LDST(&process->prog_trap_new_state);
+	} else {
+		// No handler address in the PTE for this trap, kill the original process/state stored in PROG_TRAP_OLD_STATE
+		killproc(&PROG_TRAP_OLD_STATE);
 	}
-
-	// Save the process's program state in Program Trap's Old State Area ?????????????????
-	*prog_trap_old_state = process->p_s;
-
-	// Load the new state and invoke the stored handler specifics for this process via its new state address (set in SYS5)
-	LDST(&process->prog_trap_new_state);
-
-	/* Alternative:
-		STST(&current_state);
-		*prog_trap_old_state = *current_state;
-
-		state_t* prog_trap_new_state = prog_trap_old_state + 1;
-		prog_trap_new_state->s_sr.ps_int = 7; 				// All interrupts disabled for mm trap handler
-		prog_trap_new_state->s_sr.ps_s = 0;	 				// Set memory management to physical addressing (no process virutalization)
-		prog_trap_new_state->s_sr.ps_m = 1;   				// Switch to Supervisor Mode to run initial proc
-		int prog_trap_handler = ((int)4 * process.state_t.s_tmp.tmp_pr.pr_typ);
-		prog_trap_new_state->s_pc = prog_trap_handler;
-		LDST(prog_trap_new_state);
-	*/
 }
-
 

@@ -14,18 +14,17 @@ extern int p1();
 	the execution of the first process, p1(). It also provides a scheduling
 	function. The module contains three routines:
 
-		- void main()
-		This function calls init(), sets up the processor state [state_t] for p1(),
-		adds p1() to the Ready Queue and calls the schedule() routine
+	- void main()
+	This function calls init(), sets up the processor state [state_t] for p1(),
+	adds p1() to the Ready Queue and calls the schedule() routine
 
-		- void static init():
-		This function determines how much phyiscal memory there is in the system. It
-		then calls initProc(), initSemd(), trapinit(), and intinit()
+	- void static init():
+	This function determines how much phyiscal memory there is in the system. It
+	then calls initProc(), initSemd(), trapinit(), and intinit()
 
-		- void schedule()
-		if the RQ is not empty this function calls intschedule() and loads the state of
-		the process at the head of the RQ. If the RQ is empty it calls intdeadlock().
-
+	- void schedule()
+	if the RQ is not empty this function calls intschedule() and loads the state of
+	the process at the head of the RQ. If the RQ is empty it calls intdeadlock().
 */
 
 proc_link ready_queue;
@@ -62,6 +61,8 @@ void main()
 	p1_state->s_sr.ps_m = 1;    // Switch to Supervisor Mode to run initial process
 	p1_state->s_sr.ps_int = 7;  // All interrupts disabled for initial process p1
 
+	initial_proc->p_s = p1_state; // TODO needed?
+
 	// Insert the initial process into the RQ
 	insertProc(&ready_queue, initial_proc);
 
@@ -86,16 +87,15 @@ void static init()
 void schedule()
 {
 	// Put process in RQ but do not remove it from the queue
-	proc_t* next_proc;
-
-	if ((next_proc = headQueue(ready_queue)) != (proc_t*)ENULL) {
-		state_t next_proc_state = next_proc->p_s;
-		// Load this process's state into the CPU? TODO ASK IF THIS IS CORRECTE DESC
-		LDST(&next_proc_state);
+	proc_t* ready_proc;
+	if ((ready_proc = headQueue(ready_queue)) != (proc_t*)ENULL) {
+		state_t this_proc_state = ready_proc->p_s;
+		// Load this process's state into the CPU
+		LDST(&this_proc_state);
 		intschedule();
 		return;
 	} 
 
-	// No process on RQ for the CPU to execute, trigger a trap with no handler and halt CPU
+	// Case where CPU is starved -> trigger a trap with no handler and halt the CPU
 	intdeadlock();
 }

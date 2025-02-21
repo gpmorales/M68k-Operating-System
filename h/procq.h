@@ -15,10 +15,15 @@ typedef struct proc_t {
 	int* semvec[SEMMAX];		/* vector of active semaphores for this entry */
 	int processor_time;			/* amount of time this proc will get on the CPU */
 
+	state_t* prog_trap_old_state;  /* The area into which the processor state (the old state) is to be stored when a trap
+									  occurs while running this process. The address of this area will be in D3 */
 	state_t* prog_trap_new_state;  /* Holds the address for a full state_t structure 
-								    	containing the actual handler specifics, including the PC
-										for the handler routine captured from D4 in Sys5 */
+								      containing the actual handler specifics, including the PC
+									  for the handler routine captured from D4 in SYS5 */
+	state_t* sys_trap_old_state; 
 	state_t* sys_trap_new_state; 
+
+	state_t* mm_trap_old_state; 
 	state_t* mm_trap_new_state; 
 
 	/*
