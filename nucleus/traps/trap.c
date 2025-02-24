@@ -29,6 +29,9 @@
 	- void static trapmmhandler():
 	- void static trapproghandler():
 	These functions will pass up memory management and program traps OR terminate the process.
+
+	NOTE: ONLY PROCESSES THAT FINISH OR ARE BLOCKED BY A SEMAPHORE ARE REMOVED FROM THE RQ
+	WE'RE KEEPING PROCESSES AT THE HEAD OF THE QUEUE WHILE THEY EXECUTE, ONLY REMOVING THEM WHEN THEY TERMINATE
 */
 
 state_t* PROG_TRAP_OLD_STATE;
@@ -107,28 +110,18 @@ void trapinit()
 */
 void static trapsyshandler() 
 {
+	// *** Recall that on trap/interrupts, the Hardware saves the CPUs processor state in the Global Trap Areas ***
+
 	// Grab the next avail process from the Ready Queue
 	proc_t* process = headQueue(ready_queue);
 
-	// *** Recall that on interruption due to a trap, the Hardware saves the CPUs processor state in the Global Trap Areas ***
-
 	// Case where that the invoking process is in NOT supervisor mode and is a SYS call we handle
 	if (SYS_TRAP_OLD_STATE->s_sr.ps_s != 1 && SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no < 9) {
-
 		// Update the system trap old state struct -> prog trap type
 		SYS_TRAP_OLD_STATE->s_tmp.tmp_pr.pr_typ = PRIVILEGE;
 
-		if (process->prog_trap_old_state != (state_t*)ENULL && process->prog_trap_new_state != (state_t*)ENULL) {
-			// Copy the interrupted process state (stored in 0x800) into the process's Prog Trap Old State Area
-			*process->prog_trap_old_state = *PROG_TRAP_OLD_STATE;
-
-			// Load the Handler State routine specifics stored in this process's New State struct ptr (address set in SYS5) onto the CPU
-			LDST(&process->prog_trap_new_state);
-		} 
-		else {
-			// No handler address in the PTE for this trap, kill the interrupted process at the head of RQ
-			killproc();
-		}
+		// Pass up trap to trap-prog handler
+		trapproghandler();
 	}
 
 	// For traps that require SYS calls 1- 6, we only need to use the Process's SYS old trap state struct to determine the exact handler needed
@@ -152,17 +145,7 @@ void static trapsyshandler()
 			getcputime();
 			break;
 		default:
-			if (process->sys_trap_old_state != (state_t*)ENULL && process->sys_trap_new_state != (state_t*)ENULL) {
-				// Copy the interrupted process state (stored in 0x930) into the process's SYS Trap Old State Area
-				*process->sys_trap_old_state = *SYS_TRAP_OLD_STATE;
-
-				// Load the Handler State routine specifics stored in this process's New State struct ptr (address set in SYS5) onto the CPU
-				LDST(&process->sys_trap_new_state);
-			}
-			else {
-				// No handler address in the PTE for this trap, kill the process at the head of RQ
-				killproc();
-			}
+			trapsysdefault();
 			break;
 	}
 
@@ -197,8 +180,6 @@ void static trapmmhandler()
 
 /*
 	Pass up Memory Managment trap or terminate the process
-	WE'RE KEEPING PROCESSES AT THE HEAD OF THE QUEUE WHILE THEY EXECUTE, ONLY REMOVING THEM WHEN THEY TERMINATE
-	NOTE: PROCESSES THAT FINISH OR ARE BLOCKED BY A SEMAPHORE ARE REMOVED FROM TEH RQ
 */
 void static trapproghandler()
 {

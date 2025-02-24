@@ -81,6 +81,7 @@ void static init()
 }
 
 
+// After the Kernel routines handle the trap or interrupt, we call schedule to resume the exeuction of the old process if applicable
 void schedule()
 {
 	// Put process in RQ but do not remove it from the queue
@@ -88,9 +89,25 @@ void schedule()
 
 	if ((ready_proc = headQueue(ready_queue)) != (proc_t*)ENULL) {
 		state_t this_proc_state = ready_proc->p_s;
-		// Load this process's state into the CPU
-		LDST(&this_proc_state);
+
+		// Get current time / last instant the process was runnning on the CPU
+		long current_time;
+		STICK(&current_time);
+
+		// Update the total amount of time on the CPU if this process WAS prev executed
+		if (ready_proc->last_start_time != 0) {
+			// The Process has been on the CPU (a trap interrupted it) so we grab the current time as the last time it was executed (just switched from proc to OS)
+			long prev_time_block = current_time - ready_proc->last_start_time;
+			ready_proc->total_processor_time += prev_time_block;
+		}
+
+		// About to reload the processor state, so update the last start time | first time executing this process, so the last start time is the current time
+		ready_proc->last_start_time = current_time;
+
 		intschedule();
+
+		// Reload this process's state into the CPU
+		LDST(&this_proc_state);
 	} 
 	else {
 		// CPU is starved -> trigger a trap with no handler and halt the CPU

@@ -290,8 +290,9 @@ void resetProcess(proc_t* p)
     // Process does not belong to any queues
     p->qcount = 0;
 
-	// The amount of processor time used by this process is 0
-    p->processor_time = 0;
+	// The of processor time used by this process is 0
+    p->total_processor_time = 0;
+    p->last_start_time = 0;
 
 	// Remove all processor states
 	p->mm_trap_old_state = (state_t*)ENULL;
@@ -315,6 +316,10 @@ void resetProcess(proc_t* p)
     // Remove all progeny links
     for (i = 0; i < MAXPROC; i++) {
         p->children_proc[i] = (proc_t*)ENULL;
+    }
+
+    for (i = 0; i < MAXPROC; i++) {
+        p->sibling_proc[i] = (proc_t*)ENULL;
     }
 }
 

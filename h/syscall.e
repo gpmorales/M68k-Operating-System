@@ -6,3 +6,4 @@ extern void semop();
 extern void notused();
 extern void trapstate();
 extern void getcputime();
+extern void trapsysdefault();

@@ -134,7 +134,7 @@ proc_t* outBlocked(proc_t* p)
         if (removalResult && tp->next == (proc_t*)ENULL) {
             semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
             removeSemaphoreFromActiveList(semaphoreDescriptor);
-			returnSemaphoreToFreeList(semaphoreDescriptor); // TODO needed?????????
+			returnSemaphoreToFreeList(semaphoreDescriptor);
             semaphoreDescriptor = nextSemaphoreDescriptor;
             continue;
         }
