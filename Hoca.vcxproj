@@ -162,10 +162,10 @@
     <ClCompile Include="h\types.h" />
     <ClCompile Include="notes\ActiveSemaphores.h" />
     <ClCompile Include="notes\Intro.h" />
+    <ClCompile Include="notes\NucleasPart1.c" />
     <ClCompile Include="notes\OperatingSystems101.h" />
     <ClCompile Include="notes\Processes.h" />
     <ClCompile Include="nucleus\interrupts\int.c" />
-    <ClCompile Include="nucleus\NucleasPart1.c" />
     <ClCompile Include="nucleus\traps\main.c" />
     <ClCompile Include="nucleus\traps\p1.c" />
     <ClCompile Include="nucleus\traps\syscall.c" />

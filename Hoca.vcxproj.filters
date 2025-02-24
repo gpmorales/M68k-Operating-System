@@ -73,9 +73,6 @@
     <ClCompile Include="queues\p1test.c">
       <Filter>queues</Filter>
     </ClCompile>
-    <ClCompile Include="nucleus\NucleasPart1.c">
-      <Filter>nucleus</Filter>
-    </ClCompile>
     <ClCompile Include="nucleus\traps\main.c">
       <Filter>nucleus\traps</Filter>
     </ClCompile>
@@ -90,6 +87,9 @@
     </ClCompile>
     <ClCompile Include="nucleus\traps\p1.c">
       <Filter>nucleus\traps</Filter>
+    </ClCompile>
+    <ClCompile Include="notes\NucleasPart1.c">
+      <Filter>notes</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
