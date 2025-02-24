@@ -104,9 +104,8 @@ void schedule()
 		// About to reload the processor state, so update the last start time | first time executing this process, so the last start time is the current time
 		ready_proc->last_start_time = current_time;
 
-		intschedule();
-
 		// Reload this process's state into the CPU
+		intschedule();
 		LDST(&this_proc_state);
 	} 
 	else {

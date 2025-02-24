@@ -62,12 +62,10 @@ void createproc()
 		insertProc(&ready_queue, child_proc);
 	}
 
-	// Switch execution flow back to process:
-
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	parent_proc->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Call schedule to exit the kernel routine and continue running the interrupted process or next process
+	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
 	schedule();
 }
 
@@ -96,7 +94,7 @@ void killproc()
 	// Remove all progeny and parent process links
 	freeProc(process);
 
-	// Call schedule to exit the kernel routine and continue running the interrupted process or next process
+	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
 	schedule();
 }
 
@@ -130,8 +128,42 @@ void killprocrecurse(proc_t* process)
 }
 
 
+/*
+	When this instruction is executed, it is interpreted by the nucleus as a set of V and P operations atomically applied to a group of semaphores.
+	Each semaphore and corresponding operation is described in a vpop structure. The vpop structure is defined in "vpop.h".
+	D4 contains the address of the vpop vector, and D3 contains the number of vpops in the vector
+
+	- The P’s may or may not get the calling process stuck on a semaphore Q, if so it comes off the RQ
+	– The V’s on active semaphores will remove the process at the head of that Sem PTE Q, but only puts it back on the
+	  RQ if its not on additional semaphore Q’
+	– Returns to the process now at the head of the RQ.
+
+*/
 void semop()
 {
+	// The interrupted process's state is saved in SYS_TRAP_OLD_STATE, which has the vpop vector address in D3
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+
+	// Get Vector of operatons to perform on a semaphores
+	vpop* sem_operations = (vpop*)SYS_TRAP_OLD_STATE->s_r[3];
+
+	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
+	for (int i = 0; i < SEMMAX; i++) {
+		vpop sem_operation = sem_operations[i];
+		int op = sem_operation.op;					// Either --> +1 / -1
+		int* s_semAddr = sem_operation.sem;			// Get the semahpore address
+		*s_semAddr = *s_semAddr + op;				// Update the semaphore TODO ???? needed
+
+		// V (+1) on an active semaphore means a resource has been freed, allowing the next blocked process to be put on the RQ
+		if (op == 1) {
+			// use process sem vector list to see how many Q's its on. if only one and this is the one then add it back to the RQ
+			// First use removeBlocked to remove the process at the head of Queue of the corresponding semaphore
+		}
+		// P (-1) will decrement the semaphore. if the sem value is postivie afterwards, the its free to allow other proceses to 'capture' it,
+		// if it becomes negative, then now the processes will be blocked
+		else {
+		}
+	}
 
 }
 
@@ -207,12 +239,10 @@ void trapstate()
 		}
 	}
 
-	// Switch execution flow back to the interrupted process:
-
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Call schedule to exit the kernel routine and continue running the interrupted process or next process
+	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
 	schedule();
 }
 
@@ -230,23 +260,15 @@ void getcputime()
 	// Grab the interrupted process
 	proc_t* process = headQueue(ready_queue);
 
-	// Recalculate the total time on the cpu by adding the current time slice to previous accumulated time
-	long current_time;
-	STICK(&current_time);
-	long total_time = (current_time - process->last_start_time) + process->total_processor_time;
-
 	// Get the time spent on the CPU from the process
 	SYS_TRAP_OLD_STATE->s_r[2] = process->total_processor_time;
-
-	// Switch execution flow back to the interrupted process:
 
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Call schedule to exit the kernel routine and continue running the interrupted process or next process
+	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
 	schedule();
 }
-
 
 
 /*

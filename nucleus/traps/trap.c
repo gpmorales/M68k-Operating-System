@@ -106,7 +106,7 @@ void trapinit()
 	XX_TRAP_NEW_STATE -> state of the handler process and its specifics to handler Trap of type XX
 
 	NOTE that only instructions SYS1 to SYS8 are treated as instructions by the nucleus (We define these routines).
-	The other SYS instructions(SYS9 to SYS17) are passed up as SYS traps.
+	The other SYS instructions (SYS9 to SYS17) are passed up as SYS traps to trapsysdefault()
 */
 void static trapsyshandler() 
 {
@@ -117,10 +117,11 @@ void static trapsyshandler()
 
 	// Case where that the invoking process is in NOT supervisor mode and is a SYS call we handle
 	if (SYS_TRAP_OLD_STATE->s_sr.ps_s != 1 && SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no < 9) {
+
 		// Update the system trap old state struct -> prog trap type
 		SYS_TRAP_OLD_STATE->s_tmp.tmp_pr.pr_typ = PRIVILEGE;
 
-		// Pass up trap to trap-prog handler
+		// Pass up this trap to the appropiate prog handler
 		trapproghandler();
 	}
 
