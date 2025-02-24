@@ -102,7 +102,7 @@ proc_t* removeBlocked(int* semAddr)
 
 /*
     Remove the process table entry pointed to by p from the queues associated with the
-    appropriate semaphore on the ASL. If the desired entry does not appear in any of
+    appropriate semaphores on the ASL. If the desired entry does not appear in any of
     the process queues (an error condition), return ENULL. Otherwise, return p.
 */
 proc_t* outBlocked(proc_t* p)
@@ -124,7 +124,7 @@ proc_t* outBlocked(proc_t* p)
 
         int removalResult = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
 
-        // Remove this semaphore from the removed process's semvac vector
+        // Remove this semaphore from the process's semvac vector
         if (removalResult) {
             removeSemaphoreFromProcessVector(semAddr, p);
             processRemoved = TRUE;
@@ -134,6 +134,7 @@ proc_t* outBlocked(proc_t* p)
         if (removalResult && tp->next == (proc_t*)ENULL) {
             semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
             removeSemaphoreFromActiveList(semaphoreDescriptor);
+			returnSemaphoreToFreeList(semaphoreDescriptor); // TODO needed?????????
             semaphoreDescriptor = nextSemaphoreDescriptor;
             continue;
         }

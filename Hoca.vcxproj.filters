@@ -102,7 +102,7 @@
     <None Include="queues\Makefile">
       <Filter>queues</Filter>
     </None>
-    <None Include="queues\p1test.c.queues">
+    <None Include="queues\p1test3.c">
       <Filter>queues</Filter>
     </None>
     <None Include="queues\README">

@@ -182,7 +182,7 @@
     <None Include="h\syscall.e" />
     <None Include="h\trap.e" />
     <None Include="queues\Makefile" />
-    <None Include="queues\p1test.c.queues" />
+    <None Include="queues\p1test3.c" />
     <None Include="queues\README" />
     <None Include="queues\README.instructions" />
   </ItemGroup>

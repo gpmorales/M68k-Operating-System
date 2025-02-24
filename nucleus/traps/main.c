@@ -27,41 +27,27 @@ extern int p1();
 	the process at the head of the RQ. If the RQ is empty it calls intdeadlock().
 */
 
+int MEMSTART;
 proc_link ready_queue;
-
 
 void main() 
 {
-	// Determines physical memory in the system and initializes Active Sem List, Process Table, and Traps
+	// SETS ASIDE A CHUNK OF MEOMRY FOR THE KERNEL ROUTINES AT THE LARGEST MEMORY LOCATION 
 	init();
-
-	// Initialize the processor state area for p1()
-	state_t global_state;
-
-	// Store the initial processor state when the OS boots up to provide clean baseline for all other processes
-	STST(&global_state); 
 
 	// Allocate a Process entry for the initial process p1 from the Process free list
 	proc_t* initial_proc = allocProc();
 
+	// Prepare the processor state in the CPU for p1. Populate some registers, SP, and PC
+	state_t* p1_state;
 
-	// *********** TODO ASK IF THIS IS NECESSARY AND IF INITIALIZING P1 PROCESSOR STATE DIRECTLY IS BETTER ???? ***********
-
-
-	// Since we initalized a valid process state already, we can set aside another state area for p1 
-	state_t* p1_state = &initial_proc->p_s;
-	STST(&p1_state);
-
-	// Update the stack pointer and the program counter for p1's processor state
-	p1_state->s_sp = global_state.s_sp - PAGESIZE*2; // Move stack pointer down from the initial global process area
-	p1_state->s_pc = (int)p1;
-
-	// Now set the status register flags for p1 process state
-	p1_state->s_sr.ps_s = 0;	// Set memory management to physical addressing (no process virutalization)
-	p1_state->s_sr.ps_m = 1;    // Switch to Supervisor Mode to run initial process
-	p1_state->s_sr.ps_int = 7;  // All interrupts disabled for initial process p1
-
-	initial_proc->p_s = p1_state; // TODO needed?
+	// Update the stack pointer and move it down from the Kernel chunk memory to prevent overriding Kernel routines
+	p1_state->s_sp = MEMSTART - PAGESIZE*2; 
+	p1_state->s_sr.ps_m = 0;					// Set memory management to physical addressing (no process virutalization)
+	p1_state->s_sr.ps_s = 1;					// Switch to Supervisor Mode to run initial process
+	p1_state->s_sr.ps_int = 7;					// All interrupts disabled for initial process p1
+	p1_state->s_pc = (int)p1;					// Set the Program Counter to p1's address
+	initial_proc->p_s = *p1_state;				// Update proc_t with the the current processor state
 
 	// Insert the initial process into the RQ
 	insertProc(&ready_queue, initial_proc);
@@ -73,13 +59,24 @@ void main()
 
 void static init()
 {
-	// Total physical memory on system (128K)
+	// Calculate physical memory on system via the stack pointer on boot-up 
+
+	// Initialize the processor state area for p1()
+	state_t global_state;
+
+	// Store the initial processor state when the OS boots up to provide clean baseline for all other processes
+	STST(&global_state); 
+
+	// Grab the global stack pointer which is at the top of memory
+	MEMSTART = global_state.s_sp;
+
+	// Prep RQ
 	ready_queue.index = ENULL;
 	ready_queue.next = (proc_link*)ENULL;
 
 	initProc(); // Initialize Process Free List
 	initSemd(); // Initialize In-active Semaphore List
-	trapinit(); // Initialize EVT + Sys, MM, and SYS Trap Areas
+	trapinit(); // Initialize EVT + Prog, MM, and SYS Trap Areas
 	intinit();  // Phase 2
 }
 
@@ -88,14 +85,15 @@ void schedule()
 {
 	// Put process in RQ but do not remove it from the queue
 	proc_t* ready_proc;
+
 	if ((ready_proc = headQueue(ready_queue)) != (proc_t*)ENULL) {
 		state_t this_proc_state = ready_proc->p_s;
 		// Load this process's state into the CPU
 		LDST(&this_proc_state);
 		intschedule();
-		return;
 	} 
-
-	// Case where CPU is starved -> trigger a trap with no handler and halt the CPU
-	intdeadlock();
+	else {
+		// CPU is starved -> trigger a trap with no handler and halt the CPU
+		intdeadlock();
+	}
 }

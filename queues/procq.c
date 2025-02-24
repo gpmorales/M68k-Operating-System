@@ -14,9 +14,7 @@ char msgbuf[128];	            /* nonrecoverable error message before shut down *
 
 /* Local Utility Routines */
 void panic(char* message);
-void resetProcess(proc_t* p);
 int findAvailableQueueSlot(proc_t* p);
-proc_t* headQueue(proc_link tp);
 
 
 /*
@@ -292,12 +290,31 @@ void resetProcess(proc_t* p)
     // Process does not belong to any queues
     p->qcount = 0;
 
+	// The amount of processor time used by this process is 0
+    p->processor_time = 0;
+
+	// Remove all processor states
+	p->mm_trap_old_state = (state_t*)ENULL;
+	p->mm_trap_new_state = (state_t*)ENULL;
+	p->sys_trap_old_state = (state_t*)ENULL;
+	p->sys_trap_new_state = (state_t*)ENULL;
+	p->prog_trap_old_state = (state_t*)ENULL;
+	p->prog_trap_new_state = (state_t*)ENULL;
+
     // Remove any semaphores or proc links associated with this proc_t entry
     int i;
     for (i = 0; i < SEMMAX; i++) {
         p->p_link[i].next = (proc_t*)ENULL;
         p->p_link[i].index = ENULL;
         p->semvec[i] = (int*)ENULL;
+    }
+
+    // Remove parent process linke
+	p->parent_proc = (proc_t*)ENULL;
+
+    // Remove all progeny links
+    for (i = 0; i < MAXPROC; i++) {
+        p->children_proc[i] = (proc_t*)ENULL;
     }
 }
 

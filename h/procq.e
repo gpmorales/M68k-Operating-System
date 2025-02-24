@@ -7,3 +7,4 @@ extern proc_t* allocProc();
 extern void freeProc(proc_t* p);
 extern void initProc();
 extern proc_t* headQueue(proc_link tp);
+extern void resetProcess(proc_t* p);
