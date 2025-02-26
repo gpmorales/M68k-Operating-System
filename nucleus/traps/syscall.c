@@ -22,17 +22,17 @@
 */
 void createproc()
 {
-	// Grab the parent process
-	proc_t* parent_proc = headQueue(ready_queue);
+	// Grab the interrupted process from the RQ that is serving as the parent process
+	proc_t* parentProcess = headQueue(readyQueue);
 
 	// The invoking process is to be the father of this process. Get the invoking process state via SYS_OLD_STATE_AREA
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
 	// Create a child process
-	proc_t* child_proc = allocProc();
+	proc_t* childProcess = allocProc();
 
-	// Cannot create new process due to lack of resources
-	if (child_proc == (proc_t*)ENULL) {
+	// Cannot create new process due to lack of resources or another reason
+	if (childProcess == (proc_t*)ENULL) {
 		// Return -1 in s_r D2
 		SYS_TRAP_OLD_STATE->s_r[2] = -1;
 	}
@@ -43,27 +43,27 @@ void createproc()
 		// Hardware will have loaded the appropiate info in SYS_OLD_STATE_AREA
 
 		// Set the child's processor state
-		state_t* child_proc_state = (state_t*)SYS_TRAP_OLD_STATE->s_r[4];
-		child_proc->p_s = *child_proc_state;
+		state_t* childProcState = (state_t*)SYS_TRAP_OLD_STATE->s_r[4];
+		childProcess->p_s = *childProcState;
 
 		// Update the parent process
-		child_proc->parent_proc = parent_proc;
+		childProcess->parent_proc = parentProcess;
 
 		// Insert child into parent children list
 		int i;
 		for (i = 0; i < MAXPROC; i++) {
-			if (parent_proc->children_proc[i] == (proc_t*)ENULL) {
-				parent_proc->children_proc[i] = child_proc;
+			if (parentProcess->children_proc[i] == (proc_t*)ENULL) {
+				parentProcess->children_proc[i] = childProcess;
 				break;
 			}
 		}
 
 		// Add child process to the tail of RQ
-		insertProc(&ready_queue, child_proc);
+		insertProc(&readyQueue, childProcess);
 	}
 
-	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
-	parent_proc->p_s = *SYS_TRAP_OLD_STATE;
+	// Update the parent process's processor state by setting the ps field to the OLD SYS PROCESS STATE area
+	parentProcess->p_s = *SYS_TRAP_OLD_STATE;
 
 	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
 	schedule();
@@ -78,17 +78,17 @@ void createproc()
 void killproc() 
 {
 	// Get the about-to-be terminated process from the RQ
-	proc_t* process = headQueue(ready_queue);
+	proc_t* process = headQueue(readyQueue);
 
 	// Remove the current invoking process from the RQ and all ASL queues
-	removeProc(&ready_queue);
+	removeProc(&readyQueue);
 	outBlocked(process);
 
 	// Recurse through all children processes 
 	int i;
 	for (i = 0; i < MAXPROC && process->children_proc[i] != (proc_t*)ENULL; i++) {
-		proc_t* child_proc = process->children_proc[i];
-		killprocrecurse(child_proc);
+		proc_t* childProcess = process->children_proc[i];
+		killprocrecurse(childProcess);
 	}
 
 	// Remove all progeny and parent process links
@@ -105,22 +105,22 @@ void killprocrecurse(proc_t* process)
 	// Remove child processes from all queues in the ASL and from RQ
 	int i;
 	for (i = 0; i < MAXPROC && process->children_proc[i] != (proc_t*)ENULL; i++) {
-		proc_t* child_proc = process->children_proc[i];
-		outBlocked(child_proc); 
-		outProc(&ready_queue, child_proc);
+		proc_t* childProcess = process->children_proc[i];
+		outBlocked(childProcess); 
+		outProc(&readyQueue, childProcess);
 
 		// Recurse through all children processes 
-		killprocrecurse(child_proc);
+		killprocrecurse(childProcess);
 	}
 
 	// Remove sibling processes from all queues in the ASL and from RQ
 	for (i = 0; i < MAXPROC && process->sibling_proc[i] != (proc_t*)ENULL; i++) {
-		proc_t* sibling_proc = process->sibling_proc[i];
-		outBlocked(sibling_proc); 
-		outProc(&ready_queue, sibling_proc);
+		proc_t* siblingProcess = process->sibling_proc[i];
+		outBlocked(siblingProcess); 
+		outProc(&readyQueue, siblingProcess);
 
 		// Recurse through all sibling processes 
-		killprocrecurse(sibling_proc);
+		killprocrecurse(siblingProcess);
 	}
 
 	// Backtrack and remove all of the process's progeny links
@@ -144,27 +144,54 @@ void semop()
 	// The interrupted process's state is saved in SYS_TRAP_OLD_STATE, which has the vpop vector address in D3
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
+	// Get the interrupted process's processor state
+	proc_t* process = headQueue(readyQueue);
+
 	// Get Vector of operatons to perform on a semaphores
-	vpop* sem_operations = (vpop*)SYS_TRAP_OLD_STATE->s_r[3];
+	vpop* semOperations = (vpop*)SYS_TRAP_OLD_STATE->s_r[3];
 
 	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
-	for (int i = 0; i < SEMMAX; i++) {
-		vpop sem_operation = sem_operations[i];
-		int op = sem_operation.op;					// Either --> +1 / -1
-		int* s_semAddr = sem_operation.sem;			// Get the semahpore address
-		*s_semAddr = *s_semAddr + op;				// Update the semaphore TODO ???? needed
+	int i;
+	for (i = 0; i < SEMMAX; i++) {
+		vpop semOperation = semOperations[i];	
+		int op = semOperation.op;					
+		int* semAddr = semOperation.sem;			// Get the semaphore address
+		int currentSemVal = *semAddr;				// Get the semaphore proper
+		*semAddr = currentSemVal + op;				// Update the semaphore
 
-		// V (+1) on an active semaphore means a resource has been freed, allowing the next blocked process to be put on the RQ
-		if (op == 1) {
-			// use process sem vector list to see how many Q's its on. if only one and this is the one then add it back to the RQ
-			// First use removeBlocked to remove the process at the head of Queue of the corresponding semaphore
+		// V (+1) on an active semaphore means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
+		if (op == UNLOCK && getSemaphoreFromActiveList(semAddr) != (semd_t*)ENULL) {
+
+			// Remove the process at the head of the corresponding Semaphore Queue 
+			proc_t* process = removeBlocked(semAddr);
+			removeSemaphoreFromProcessVector(semAddr, process);
+
+			// If the process is no longer blocked on any Semaphores, then add it back to the RQ
+			if (!blockedBySemaphore(process)) {
+				insertProc(&readyQueue, process);
+			}
 		}
-		// P (-1) will decrement the semaphore. if the sem value is postivie afterwards, the its free to allow other proceses to 'capture' it,
-		// if it becomes negative, then now the processes will be blocked
-		else {
+		// P (-1) will decrement the semaphore. if the sem value is positive afterwards, 
+		// the Semaphore is still free to allow other proceses to 'capture' it, if it becomes negative, 
+		// then now the processes will be blocked
+		else if (op == LOCK) {
+			// Semaphore has become negative, meaning its blocking at least 1 process and is now active
+			if (currentSemVal == 0) {
+				// addSemToActiveList()?
+			}
+
+			// Check if the interrupted process has become blocked by at least 1 queue
+			if (blockedBySemaphore(process)) {
+				removeProc(readyQueue);
+			}
 		}
 	}
 
+	//// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
+	process->p_s = *SYS_TRAP_OLD_STATE;
+
+	// Call schedule to exit this kernel routine and switch execution flow to reloading the interrupted process on the CPU
+	schedule();
 }
 
 
@@ -199,16 +226,16 @@ void trapstate()
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
 	// Grab the interrupted process so we populate the corresponding old processor state area with whats in 0x930
-	proc_t* process = headQueue(ready_queue);
+	proc_t* process = headQueue(readyQueue);
 
 	// Hardware will have loaded the appropiate info in SYS_OLD_STATE_AREA
-	int trap_type = SYS_TRAP_OLD_STATE->s_r[2];
+	int trapType = SYS_TRAP_OLD_STATE->s_r[2];
 	state_t* old_state_area = (state_t*)SYS_TRAP_OLD_STATE->s_r[3];	  // address to the old state area we will populate later with the old processor state
 	state_t* new_state_area = (state_t*)SYS_TRAP_OLD_STATE->s_r[4];   // address to the specific handler processor state for this trap, already populated!
 
 	// Make sure the corresponding pointers in proc_t have NOT been popoulated (SYS5 wasnt invoked)
 
-	if (trap_type == PROGTRAP) {
+	if (trapType == PROGTRAP) {
 		// We can only specify the trap state vector once per trap type
 		if (process->prog_trap_old_state != (state_t*)ENULL && process->prog_trap_new_state != (state_t*)ENULL) {
 			process->prog_trap_old_state = old_state_area;
@@ -218,7 +245,7 @@ void trapstate()
 			killproc();
 		}
 	}
-	else if (trap_type == MMTRAP) {
+	else if (trapType == MMTRAP) {
 		// We can only specify the trap state vector once per trap type
 		if (process->mm_trap_old_state != (state_t*)ENULL && process->mm_trap_new_state != (state_t*)ENULL) {
 			process->mm_trap_old_state = old_state_area;
@@ -228,7 +255,7 @@ void trapstate()
 			killproc();
 		}
 	}
-	else if (trap_type == SYSTRAP) {
+	else if (trapType == SYSTRAP) {
 		// We can only specify the trap state vector once per trap type
 		if (process->sys_trap_old_state != (state_t*)ENULL && process->sys_trap_new_state != (state_t*)ENULL) {
 			process->sys_trap_old_state = old_state_area;
@@ -242,7 +269,7 @@ void trapstate()
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
+	// Call schedule to exit this kernel routine and switch execution flow to reloading the interrupted process on the CPU
 	schedule();
 }
 
@@ -258,7 +285,7 @@ void getcputime()
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
 	// Grab the interrupted process
-	proc_t* process = headQueue(ready_queue);
+	proc_t* process = headQueue(readyQueue);
 
 	// Get the time spent on the CPU from the process
 	SYS_TRAP_OLD_STATE->s_r[2] = process->total_processor_time;
@@ -266,7 +293,7 @@ void getcputime()
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
+	// Call schedule to exit this kernel routine and switch execution flow to reloading the interrupted process on the CPU
 	schedule();
 }
 
@@ -279,8 +306,8 @@ void trapsysdefault()
 	// The interrupted process's state is saved in SYS_TRAP_OLD_STATE
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
-	// Grab the interrupted process
-	proc_t* process = headQueue(ready_queue);
+	// Grab the interrupted process from the RQ
+	proc_t* process = headQueue(readyQueue);
 
 	if (process->sys_trap_old_state != (state_t*)ENULL && process->sys_trap_new_state != (state_t*)ENULL) {
 		// Copy the interrupted process state (stored in 0x930) into the process's SYS Trap Old State Area

@@ -7,3 +7,5 @@ extern void notused();
 extern void trapstate();
 extern void getcputime();
 extern void trapsysdefault();
+
+extern killprocrecurse(proc_t* process)

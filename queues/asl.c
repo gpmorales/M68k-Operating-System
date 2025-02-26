@@ -16,9 +16,7 @@ void returnSemaphoreToFreeList(semd_t* s);
 void insertSemaphoreIntoActiveList(semd_t* s);
 void removeSemaphoreFromActiveList(semd_t* s);
 int addSemaphoreToProcessVector(int* semAddr, proc_t* p);
-int removeSemaphoreFromProcessVector(int* semAddr, proc_t* p);
 semd_t* allocateSemaphoreFromFreeList();
-semd_t* getSemaphoreFromActiveList(int* semAddr);
 void resetSemaphore(semd_t* s);
 
 
@@ -329,12 +327,14 @@ void removeSemaphoreFromActiveList(semd_t* s)
 semd_t* getSemaphoreFromActiveList(int* semAddr) 
 {
     semd_t* semDescriptor = semd_h;
+
     while (semDescriptor != (semd_t*)ENULL) {
         if (semDescriptor->s_semAdd == semAddr) {
             return semDescriptor;
         }
         semDescriptor = semDescriptor->s_next;
     }
+
     return (semd_t*)ENULL;
 }
 
@@ -401,4 +401,21 @@ void resetSemaphore(semd_t* s)
     s->s_semAdd = (int*)ENULL;
     s->s_link.index = ENULL;
     s->s_link.next = (proc_t*)ENULL;
+}
+
+
+
+/*
+    Returns true if the process is blocked by at least one Semaphore
+*/
+int blockedBySemaphore(proc_t* p) {
+    // Iterate through hte process's vector of active semaphores
+	int i;
+	for (i = 0; i < SEMMAX; i++) {
+		if (p->semvec[i] != (int*)ENULL) {
+            return TRUE;
+		}
+	}
+
+	return FALSE;
 }

@@ -112,12 +112,8 @@ void static trapsyshandler()
 {
 	// *** Recall that on trap/interrupts, the Hardware saves the CPUs processor state in the Global Trap Areas ***
 
-	// Grab the next avail process from the Ready Queue
-	proc_t* process = headQueue(ready_queue);
-
-	// Case where that the invoking process is in NOT supervisor mode and is a SYS call we handle
+	// Case where that the invoking process is NOT in supervisor mode and is a SYS call we handle
 	if (SYS_TRAP_OLD_STATE->s_sr.ps_s != 1 && SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no < 9) {
-
 		// Update the system trap old state struct -> prog trap type
 		SYS_TRAP_OLD_STATE->s_tmp.tmp_pr.pr_typ = PRIVILEGE;
 
@@ -158,13 +154,14 @@ void static trapsyshandler()
 
 
 /*
-	Pass up Porgram trap or terminate the process
+	Pass up Memory Managment trap or terminate the process
 */
 void static trapmmhandler() 
 {
-	// Grab the next avail process from the Ready Queue
-	proc_t* process = headQueue(ready_queue);
+	// Grab the interrupted process from the RQ
+	proc_t* process = headQueue(readyQueue);
 
+	// Ensure the process's old state and new state areas have been properly initialized
 	if (process->mm_trap_old_state != (state_t*)ENULL && process->mm_trap_new_state != (state_t*)ENULL) {
 		// Copy the interrupted process state (stored in 0x898) into the process's MM Trap Old State Area
 		*process->mm_trap_old_state = *MM_TRAP_OLD_STATE;
@@ -180,13 +177,14 @@ void static trapmmhandler()
 
 
 /*
-	Pass up Memory Managment trap or terminate the process
+	Pass up Program trap or terminate the process
 */
 void static trapproghandler()
 {
-	// Grab the interrupted process from the Ready Queue
-	proc_t* process = headQueue(ready_queue);
+	// Grab the interrupted process from the RQ
+	proc_t* process = headQueue(readyQueue);
 
+	// Ensure the process's old state and new state areas have been properly initialized
 	if (process->prog_trap_old_state != (state_t*)ENULL && process->prog_trap_new_state != (state_t*)ENULL) {
 		// Copy the interrupted process state (stored in 0x800) into the process's Prog Trap Old State Area
 		*process->prog_trap_old_state = *PROG_TRAP_OLD_STATE;

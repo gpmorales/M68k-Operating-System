@@ -1,6 +1,5 @@
 #include "procq.h"
 
-extern proc_link ready_queue;
 int MEMSTART;
-
-void schedule();
+proc_link readyQueue;
+extern void schedule();

@@ -28,7 +28,8 @@ extern int p1();
 */
 
 int MEMSTART;
-proc_link ready_queue;
+proc_link readyQueue;
+
 
 void main() 
 {
@@ -36,21 +37,21 @@ void main()
 	init();
 
 	// Allocate a Process entry for the initial process p1 from the Process free list
-	proc_t* initial_proc = allocProc();
+	proc_t* initialProcess = allocProc();
 
 	// Prepare the processor state in the CPU for p1. Populate some registers, SP, and PC
-	state_t* p1_state;
+	state_t* initialProcState;
 
 	// Update the stack pointer and move it down from the Kernel chunk memory to prevent overriding Kernel routines
-	p1_state->s_sp = MEMSTART - PAGESIZE*2; 
-	p1_state->s_sr.ps_m = 0;					// Set memory management to physical addressing (no process virutalization)
-	p1_state->s_sr.ps_s = 1;					// Switch to Supervisor Mode to run initial process
-	p1_state->s_sr.ps_int = 7;					// All interrupts disabled for initial process p1
-	p1_state->s_pc = (int)p1;					// Set the Program Counter to p1's address
-	initial_proc->p_s = *p1_state;				// Update proc_t with the the current processor state
+	initialProcState->s_sp = MEMSTART - PAGESIZE*2; 
+	initialProcState->s_sr.ps_m = 0;					// Set memory management to physical addressing (no process virutalization)
+	initialProcState->s_sr.ps_s = 1;					// Switch to Supervisor Mode to run initial process
+	initialProcState->s_sr.ps_int = 7;					// All interrupts disabled for initial process p1
+	initialProcState->s_pc = (int)p1;					// Set the Program Counter to p1's address
+	initialProcess->p_s = *initialProcState;				// Update proc_t with the the current processor state
 
 	// Insert the initial process into the RQ
-	insertProc(&ready_queue, initial_proc);
+	insertProc(&readyQueue, initialProcess);
 
 	// Begin scheduling tasks for the CPU to execute form the Ready Queue
 	schedule();
@@ -62,17 +63,17 @@ void static init()
 	// Calculate physical memory on system via the stack pointer on boot-up 
 
 	// Initialize the processor state area for p1()
-	state_t global_state;
+	state_t globalState;
 
 	// Store the initial processor state when the OS boots up to provide clean baseline for all other processes
-	STST(&global_state); 
+	STST(&globalState); 
 
 	// Grab the global stack pointer which is at the top of memory
-	MEMSTART = global_state.s_sp;
+	MEMSTART = globalState.s_sp;
 
 	// Prep RQ
-	ready_queue.index = ENULL;
-	ready_queue.next = (proc_link*)ENULL;
+	readyQueue.index = ENULL;
+	readyQueue.next = (proc_link*)ENULL;
 
 	initProc(); // Initialize Process Free List
 	initSemd(); // Initialize In-active Semaphore List
@@ -85,28 +86,28 @@ void static init()
 void schedule()
 {
 	// Put process in RQ but do not remove it from the queue
-	proc_t* ready_proc;
+	proc_t* readyProcess;
 
-	if ((ready_proc = headQueue(ready_queue)) != (proc_t*)ENULL) {
-		state_t this_proc_state = ready_proc->p_s;
+	if ((readyProcess = headQueue(readyQueue)) != (proc_t*)ENULL) {
+		state_t procState = readyProcess->p_s;
 
 		// Get current time / last instant the process was runnning on the CPU
 		long current_time;
 		STICK(&current_time);
 
 		// Update the total amount of time on the CPU if this process WAS prev executed
-		if (ready_proc->last_start_time != 0) {
+		if (readyProcess->last_start_time != 0) {
 			// The Process has been on the CPU (a trap interrupted it) so we grab the current time as the last time it was executed (just switched from proc to OS)
-			long prev_time_block = current_time - ready_proc->last_start_time;
-			ready_proc->total_processor_time += prev_time_block;
+			long prev_time_block = current_time - readyProcess->last_start_time;
+			readyProcess->total_processor_time += prev_time_block;
 		}
 
 		// About to reload the processor state, so update the last start time | first time executing this process, so the last start time is the current time
-		ready_proc->last_start_time = current_time;
+		readyProcess->last_start_time = current_time;
 
-		// Reload this process's state into the CPU
+		// Load this process's state into the CPU
 		intschedule();
-		LDST(&this_proc_state);
+		LDST(&procState);
 	} 
 	else {
 		// CPU is starved -> trigger a trap with no handler and halt the CPU
