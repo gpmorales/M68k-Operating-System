@@ -1,7 +1,9 @@
-﻿#include "../interrupts/int.c"
-#include "../../h/types.h"				
-#include "../../h/procq.e"				
-#include "../../h/main.e"				
+﻿#include "../../h/types.h"
+#include "../../h/const.h"
+#include "../../h/procq.e"
+#include "../../h/main.e"
+#include "../../h/asl.e"
+#include "../../h/vpop.h"
 
 /*
 	Definition of System call routines SYS1, SYS2, SYS3, SYS4, SYS5 and SYS6.
@@ -9,6 +11,7 @@
 	If invoked in usermode, a privileged instruction trap should be generated.
 */
 
+void killprocrecurse(proc_t* process);
 
 /*
 	When executed, this instruction causes a new process, said to be a progeny of the first, to be created.
@@ -22,6 +25,7 @@
 */
 void createproc()
 {
+	int M = MEMSTART;
 	// Grab the interrupted process from the RQ that is serving as the parent process
 	proc_t* parentProcess = headQueue(readyQueue);
 
@@ -148,14 +152,13 @@ void semop()
 	proc_t* process = headQueue(readyQueue);
 
 	// Get Vector of operatons to perform on a semaphores
-	vpop* semOperations = (vpop*)SYS_TRAP_OLD_STATE->s_r[3];
+	struct vpop* semOperations = (struct vpop*)SYS_TRAP_OLD_STATE->s_r[3];
 
 	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
 	int i;
 	for (i = 0; i < SEMMAX; i++) {
-		vpop semOperation = semOperations[i];	
-		int op = semOperation.op;					
-		int* semAddr = semOperation.sem;			// Get the semaphore address
+		int op = semOperations[i].op;				// Get operation to be performed on semaphore
+		int* semAddr = semOperations[i].sem;		// Get the semaphore address
 		int currentSemVal = *semAddr;				// Get the semaphore proper
 		*semAddr = currentSemVal + op;				// Update the semaphore
 
@@ -182,7 +185,7 @@ void semop()
 
 			// Check if the interrupted process has become blocked by at least 1 queue
 			if (blockedBySemaphore(process)) {
-				removeProc(readyQueue);
+				removeProc(&readyQueue);
 			}
 		}
 	}

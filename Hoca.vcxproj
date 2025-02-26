@@ -177,6 +177,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e" />
+    <None Include="h\int.e" />
     <None Include="h\main.e" />
     <None Include="h\procq.e" />
     <None Include="h\syscall.e" />

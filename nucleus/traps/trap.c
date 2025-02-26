@@ -2,13 +2,12 @@
     This code is my own work, it was written without consulting code written by other students current or previous or using any AI tools
     George Morales
 */
-#include "../../h/syscall.e"				
-#include "../../h/types.h"				
 #include "../../h/const.h"				
-#include "../../h/trap.e"
-#include "../../h/main.e"				
-#include "../../h/procq.e"				
 #include "../../h/util.h"
+#include "../../h/main.e"				
+#include "../../h/syscall.e"				
+#include "../../h/procq.e"				
+
 
 /*
 	This module handles the traps, it has the following static functions:
@@ -67,7 +66,7 @@ void trapinit()
 	*((int*)0x140) = (int)STLDCLOCK();
 
 	// Allocate New and Old State Areas for Program Traps
-	PROG_TRAP_OLD_STATE = (state_t*)0x800;					  // Set pointer to address in Memory -> 76 bytes
+	PROG_TRAP_OLD_STATE = (state_t*)BEGINTRAP;				  // Set pointer to address in Memory -> 76 bytes
 	state_t* PROG_TRAP_NEW_STATE = PROG_TRAP_OLD_STATE + 1;   // Offset for New State area
 	PROG_TRAP_NEW_STATE->s_sr.ps_int = 7; 				      // All interrupts disabled for process trap handler
 	PROG_TRAP_NEW_STATE->s_sr.ps_m = 0;	 				      // Set memory management to physical addressing (no process virutalization)

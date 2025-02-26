@@ -2,10 +2,11 @@
     This code is my own work, it was written without consulting code written by other students current or previous or using any AI tools
     George Morales
 */
-#include "../interrupts/int.c"
-#include "../../h/procq.e"				
-#include "../../h/trap.e"				
-#include "../../h/asl.e"				
+#include "../../h/types.h"
+#include "../../h/procq.e"
+#include "../../h/trap.e"
+#include "../../h/asl.e"
+#include "../../h/const.h"
 
 extern int p1();
 
@@ -40,15 +41,15 @@ void main()
 	proc_t* initialProcess = allocProc();
 
 	// Prepare the processor state in the CPU for p1. Populate some registers, SP, and PC
-	state_t* initialProcState;
+	state_t initialProcState;
 
 	// Update the stack pointer and move it down from the Kernel chunk memory to prevent overriding Kernel routines
-	initialProcState->s_sp = MEMSTART - PAGESIZE*2; 
-	initialProcState->s_sr.ps_m = 0;					// Set memory management to physical addressing (no process virutalization)
-	initialProcState->s_sr.ps_s = 1;					// Switch to Supervisor Mode to run initial process
-	initialProcState->s_sr.ps_int = 7;					// All interrupts disabled for initial process p1
-	initialProcState->s_pc = (int)p1;					// Set the Program Counter to p1's address
-	initialProcess->p_s = *initialProcState;				// Update proc_t with the the current processor state
+	initialProcState.s_sp = MEMSTART - PAGESIZE*2; 
+	initialProcState.s_sr.ps_m = 0;					// Set memory management to physical addressing (no process virutalization)
+	initialProcState.s_sr.ps_s = 1;					// Switch to Supervisor Mode to run initial process
+	initialProcState.s_sr.ps_int = 7;					// All interrupts disabled for initial process p1
+	initialProcState.s_pc = (int)p1;					// Set the Program Counter to p1's address
+	initialProcess->p_s = initialProcState;				// Update proc_t with the the current processor state
 
 	// Insert the initial process into the RQ
 	insertProc(&readyQueue, initialProcess);
