@@ -144,10 +144,7 @@ void static trapsyshandler()
 			trapsysdefault();
 			break;
 	}
-
-	// In the case where we handled the SYS trap with one of our own routines, we return the flow to the 
-	// original process whose state specific data is in the global sys_trap_old_state
-	LDST(&SYS_TRAP_OLD_STATE);
+	// Note that for routines SYS1-6, we return the execution flow to the original process via schedule and LDST()
 }
 
 
@@ -169,7 +166,7 @@ void static trapmmhandler()
 		LDST(&process->mm_trap_new_state);
 	}
 	else {
-		// No handler address in the PTE for this trap, kill the process at the head of RQ
+		// No handler address in the PTE for this trap, kill the interuupted process
 		killproc();
 	}
 }
@@ -192,7 +189,7 @@ void static trapproghandler()
 		LDST(&process->prog_trap_new_state);
 	} 
 	else {
-		// No handler address in the PTE for this trap, kill the process at the head of RQ
+		// No handler address in the PTE for this trap, kill the interuupted process
 		killproc();
 	}
 }

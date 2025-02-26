@@ -3,10 +3,11 @@
     George Morales
 */
 #include "../../h/types.h"
+#include "../../h/const.h"
 #include "../../h/procq.e"
 #include "../../h/trap.e"
+#include "../../h/int.e"
 #include "../../h/asl.e"
-#include "../../h/const.h"
 
 extern int p1();
 

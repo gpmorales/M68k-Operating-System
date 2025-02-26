@@ -11,8 +11,6 @@
 	If invoked in usermode, a privileged instruction trap should be generated.
 */
 
-void killprocrecurse(proc_t* process);
-
 /*
 	When executed, this instruction causes a new process, said to be a progeny of the first, to be created.
 
@@ -69,7 +67,7 @@ void createproc()
 	// Update the parent process's processor state by setting the ps field to the OLD SYS PROCESS STATE area
 	parentProcess->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
+	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
 	schedule();
 }
 
@@ -98,13 +96,13 @@ void killproc()
 	// Remove all progeny and parent process links
 	freeProc(process);
 
-	// Switch execution flow by calling schedule to exit the kernel routine and reloading the interrupted process on the CPU
+	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
 	schedule();
 }
 
 
 // Recursive function to terminate process and its children
-void killprocrecurse(proc_t* process)
+void static killprocrecurse(proc_t* process)
 {
 	// Remove child processes from all queues in the ASL and from RQ
 	int i;
@@ -190,10 +188,10 @@ void semop()
 		}
 	}
 
-	//// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
+	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Call schedule to exit this kernel routine and switch execution flow to reloading the interrupted process on the CPU
+	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
 	schedule();
 }
 
@@ -272,7 +270,7 @@ void trapstate()
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Call schedule to exit this kernel routine and switch execution flow to reloading the interrupted process on the CPU
+	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
 	schedule();
 }
 
@@ -296,7 +294,7 @@ void getcputime()
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;
 
-	// Call schedule to exit this kernel routine and switch execution flow to reloading the interrupted process on the CPU
+	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
 	schedule();
 }
 
