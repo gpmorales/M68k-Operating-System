@@ -32,8 +32,8 @@ typedef struct proc_t {
 	state_t* mm_trap_new_state; 
 
 	proc_t* parent_proc;
-	proc_t* sibling_proc[MAXPROC];
-	proc_t* children_proc[MAXPROC];
+	proc_t* sibling_proc;
+	proc_t* children_proc;
 } proc_t;
 
 #endif

@@ -310,17 +310,10 @@ void resetProcess(proc_t* p)
         p->semvec[i] = (int*)ENULL;
     }
 
-    // Remove parent process linke
-	p->parent_proc = (proc_t*)ENULL;
-
     // Remove all progeny links
-    for (i = 0; i < MAXPROC; i++) {
-        p->children_proc[i] = (proc_t*)ENULL;
-    }
-
-    for (i = 0; i < MAXPROC; i++) {
-        p->sibling_proc[i] = (proc_t*)ENULL;
-    }
+	p->parent_proc = (proc_t*)ENULL;
+	p->children_proc = (proc_t*)ENULL;
+	p->sibling_proc = (proc_t*)ENULL;
 }
 
 

@@ -24,10 +24,11 @@
 void createproc()
 {
 	int M = MEMSTART;
-	// Grab the interrupted process from the RQ that is serving as the parent process
+
+	// Grab the interrupted process from the RQ, serving as the parent process
 	proc_t* parentProcess = headQueue(readyQueue);
 
-	// The invoking process is to be the father of this process. Get the invoking process state via SYS_OLD_STATE_AREA
+	// Get its processor state via SYS_OLD_STATE_AREA
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
 	// Create a child process
@@ -42,8 +43,6 @@ void createproc()
 		// Child process can be created
 		SYS_TRAP_OLD_STATE->s_r[2] = 0;
 
-		// Hardware will have loaded the appropiate info in SYS_OLD_STATE_AREA
-
 		// Set the child's processor state
 		state_t* childProcState = (state_t*)SYS_TRAP_OLD_STATE->s_r[4];
 		childProcess->p_s = *childProcState;
@@ -52,12 +51,16 @@ void createproc()
 		childProcess->parent_proc = parentProcess;
 
 		// Insert child into parent children list
-		int i;
-		for (i = 0; i < MAXPROC; i++) {
-			if (parentProcess->children_proc[i] == (proc_t*)ENULL) {
-				parentProcess->children_proc[i] = childProcess;
-				break;
+		if (parentProcess->children_proc != (proc_t*)ENULL) {
+			parentProcess->children_proc = childProcess;
+		}
+		else {
+			// Iterate through the parent's children to add the new Process as a sibling
+			proc_t* siblingProces = parentProcess->children_proc;
+			while (siblingProces->sibling_proc != (proc_t*)ENULL) {
+				siblingProces = siblingProces->sibling_proc;
 			}
+			siblingProces->sibling_proc = childProcess;
 		}
 
 		// Add child process to the tail of RQ
@@ -80,21 +83,23 @@ void createproc()
 void killproc() 
 {
 	// Get the about-to-be terminated process from the RQ
-	proc_t* process = headQueue(readyQueue);
+	proc_t* killProcess = headQueue(readyQueue);
 
 	// Remove the current invoking process from the RQ and all ASL queues
 	removeProc(&readyQueue);
-	outBlocked(process);
+	outBlocked(killProcess);
 
-	// Recurse through all children processes 
-	int i;
-	for (i = 0; i < MAXPROC && process->children_proc[i] != (proc_t*)ENULL; i++) {
-		proc_t* childProcess = process->children_proc[i];
-		killprocrecurse(childProcess);
+	// Recurse through all children processes and the child silblings of those children
+	killprocrecurse(killProcess->children_proc);
+
+	// Check if this process's siblings are present, if so update the parent child pointer
+	if (killProcess->sibling_proc != (proc_t*)ENULL) {
+		proc_t* parentProcess = killProcess->parent_proc;
+		parentProcess->children_proc = killProcess->sibling_proc;
 	}
 
 	// Remove all progeny and parent process links
-	freeProc(process);
+	freeProc(killProcess);
 
 	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
 	schedule();
@@ -104,25 +109,28 @@ void killproc()
 // Recursive function to terminate process and its children
 void static killprocrecurse(proc_t* process)
 {
-	// Remove child processes from all queues in the ASL and from RQ
-	int i;
-	for (i = 0; i < MAXPROC && process->children_proc[i] != (proc_t*)ENULL; i++) {
-		proc_t* childProcess = process->children_proc[i];
+	// Remove the child processes from this layer from all Queues in the ASL and RQ
+	proc_t* childProcess = process->children_proc;
+
+	if (childProcess != (proc_t*)ENULL) {
 		outBlocked(childProcess); 
 		outProc(&readyQueue, childProcess);
 
 		// Recurse through all children processes 
 		killprocrecurse(childProcess);
+		childProcess = childProcess->children_proc;
 	}
 
-	// Remove sibling processes from all queues in the ASL and from RQ
-	for (i = 0; i < MAXPROC && process->sibling_proc[i] != (proc_t*)ENULL; i++) {
-		proc_t* siblingProcess = process->sibling_proc[i];
+	// Remove sibling processes from  queues in the ASL and from RQ
+	proc_t* siblingProcess = process->sibling_proc;
+
+	if (siblingProcess != (proc_t*)ENULL) {
 		outBlocked(siblingProcess); 
 		outProc(&readyQueue, siblingProcess);
 
 		// Recurse through all sibling processes 
 		killprocrecurse(siblingProcess);
+		siblingProcess = siblingProcess->sibling_proc;
 	}
 
 	// Backtrack and remove all of the process's progeny links
@@ -150,11 +158,12 @@ void semop()
 	proc_t* process = headQueue(readyQueue);
 
 	// Get Vector of operatons to perform on a semaphores
-	struct vpop* semOperations = (struct vpop*)SYS_TRAP_OLD_STATE->s_r[3];
+	vpop* semOperations = (vpop*)SYS_TRAP_OLD_STATE->s_r[4];
+	int len = SYS_TRAP_OLD_STATE->s_r[3];
 
 	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
 	int i;
-	for (i = 0; i < SEMMAX; i++) {
+	for (i = 0; i < len; i++) {
 		int op = semOperations[i].op;				// Get operation to be performed on semaphore
 		int* semAddr = semOperations[i].sem;		// Get the semaphore address
 		int currentSemVal = *semAddr;				// Get the semaphore proper
@@ -172,21 +181,19 @@ void semop()
 				insertProc(&readyQueue, process);
 			}
 		}
-		// P (-1) will decrement the semaphore. if the sem value is positive afterwards, 
-		// the Semaphore is still free to allow other proceses to 'capture' it, if it becomes negative, 
-		// then now the processes will be blocked
+		// P (-1) will decrement the semaphore, if the sem value is negative afterwards, the interrupted process should be blocked
 		else if (op == LOCK) {
-			// Semaphore has become negative, meaning its blocking at least 1 process and is now active
-			if (currentSemVal == 0) {
-				// addSemToActiveList()?
-			}
-
-			// Check if the interrupted process has become blocked by at least 1 queue
-			if (blockedBySemaphore(process)) {
+			// Semaphore has become negative, meaning its blocking at least the process and is now active
+			// The running process at the head of the Queue can be blocked by a P operation however other processes 
+			// can not be blocked since they are not the one requesting resources at this time
+			if (*semAddr < 0) {
+				insertSemaphoreIntoProcess();
 				removeProc(&readyQueue);
 			}
 		}
 	}
+	// 1 P at most (blocking other processes that havent requested a resource is non-sensical)
+	// A large number of V operations, those can pertain to other resources/processes or to this process capturing multiple semaphores
 
 	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 	process->p_s = *SYS_TRAP_OLD_STATE;

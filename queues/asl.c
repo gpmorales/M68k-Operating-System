@@ -13,7 +13,6 @@ semd_t* semd_h = (semd_t*)ENULL;	        /* Pointer to the head of the ASL */
 
 /* Local Utility Routines */
 void returnSemaphoreToFreeList(semd_t* s);
-void insertSemaphoreIntoActiveList(semd_t* s);
 void removeSemaphoreFromActiveList(semd_t* s);
 int addSemaphoreToProcessVector(int* semAddr, proc_t* p);
 semd_t* allocateSemaphoreFromFreeList();

@@ -10,3 +10,4 @@ extern int headASL();
 extern semd_t* getSemaphoreFromActiveList(int* semAddr);
 extern int removeSemaphoreFromProcessVector(int* semAddr, proc_t* p);
 extern int blockedBySemaphore(proc_t* p) {
+extern void insertSemaphoreIntoActiveList(semd_t* s);
