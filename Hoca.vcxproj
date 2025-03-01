@@ -167,6 +167,7 @@
     <ClCompile Include="notes\Processes.h" />
     <ClCompile Include="nucleus\interrupts\int.c" />
     <ClCompile Include="nucleus\traps\main.c" />
+    <ClCompile Include="nucleus\traps\p1.2.c" />
     <ClCompile Include="nucleus\traps\p1.c" />
     <ClCompile Include="nucleus\traps\syscall.c" />
     <ClCompile Include="nucleus\traps\trap.c" />

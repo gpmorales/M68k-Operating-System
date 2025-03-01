@@ -85,7 +85,7 @@ void killprocrecurse(proc_t* process)
 		return;
 	}
 
-	// DFS into the last child, then go for silbings of those children
+	// DFS into the last child, then go for siblings of those children
 	proc_t* childProcess = process->children_proc;
 	if (childProcess != (proc_t*)ENULL) {
 		killprocrecurse(childProcess);
@@ -116,7 +116,7 @@ void killproc()
 	proc_t* killProcess = headQueue(readyQueue);
 
 	// Kill family tree
-	killprocrecurse(killProcess);
+	killprocrecurse(killProcess->children_proc);
 
 	// Set the parent child pointer to the killed process's immeadiate sibling
 	proc_t* parentProcess = killProcess->parent_proc;
@@ -157,20 +157,21 @@ void semop()
 	// Get Vector of operatons to perform on a semaphores
 	vpop* semOperations = (vpop*)SYS_TRAP_OLD_STATE->s_r[4];
 	int len = SYS_TRAP_OLD_STATE->s_r[3];
+
 	int callingProcessBlocked = FALSE;
 
 	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
 	int i;
 	for (i = 0; i < len; i++) {
-		int op = semOperations[i].op;				// Get operation to be performed on semaphore
-		int* semAddr = semOperations[i].sem;		// Get the semaphore address
+		int op = semOperations[i].op;			// Get operation to be performed on semaphore
+		int* semAddr = semOperations[i].sem;	// Get the semaphore address
 		int prevSemVal = *semAddr;				// Get the semaphore proper
 		*semAddr = prevSemVal + op;				// Update the semaphore
 
 		// V (+1) on an active semaphore (-value) means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
 		if (op == UNLOCK) {
 
-			// Do nothing if the semaphore was not active to begin with, as resources are already free
+			// Do nothing if the semaphore was not active, as resources are already free
 			if (prevSemVal >= 0) continue;
 
 			// Remove the process at the head of the corresponding Semaphore Queue and update Semvec
@@ -182,7 +183,10 @@ void semop()
 			}
 		}
 		// P (-1) will decrement the semaphore, if the sem value is negative afterwards, the interrupted process should be blocked
-		else if (op == LOCK && prevSemVal <= 0) {
+		else if (op == LOCK) {
+			// Do nothing if the semaphore still has resources
+			if (prevSemVal > 0) continue;
+
 			// Semaphore has become negative, meaning its blocking at least the process and is now active
 			// The running process at the head of the Queue can be blocked by a P operation 
 			// we do not want this to prevent other processes from being unblocked, so use a flag
@@ -244,7 +248,7 @@ void trapstate()
 
 	if (trapType == PROGTRAP) {
 		// We can only specify the trap state vector once per trap type
-		if (process->prog_trap_old_state != (state_t*)ENULL && process->prog_trap_new_state != (state_t*)ENULL) {
+		if (process->prog_trap_old_state == (state_t*)ENULL && process->prog_trap_new_state == (state_t*)ENULL) {
 			process->prog_trap_old_state = old_state_area;
 			process->prog_trap_new_state = new_state_area;
 		}
@@ -254,7 +258,7 @@ void trapstate()
 	}
 	else if (trapType == MMTRAP) {
 		// We can only specify the trap state vector once per trap type
-		if (process->mm_trap_old_state != (state_t*)ENULL && process->mm_trap_new_state != (state_t*)ENULL) {
+		if (process->mm_trap_old_state == (state_t*)ENULL && process->mm_trap_new_state == (state_t*)ENULL) {
 			process->mm_trap_old_state = old_state_area;
 			process->mm_trap_new_state = new_state_area;
 		} 
@@ -264,7 +268,7 @@ void trapstate()
 	}
 	else if (trapType == SYSTRAP) {
 		// We can only specify the trap state vector once per trap type
-		if (process->sys_trap_old_state != (state_t*)ENULL && process->sys_trap_new_state != (state_t*)ENULL) {
+		if (process->sys_trap_old_state == (state_t*)ENULL && process->sys_trap_new_state == (state_t*)ENULL) {
 			process->sys_trap_old_state = old_state_area;
 			process->sys_trap_new_state = new_state_area;
 		} 

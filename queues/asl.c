@@ -16,6 +16,7 @@ void returnSemaphoreToFreeList(semd_t* s);
 void removeSemaphoreFromActiveList(semd_t* s);
 int addSemaphoreToProcessVector(int* semAddr, proc_t* p);
 semd_t* allocateSemaphoreFromFreeList();
+semd_t* getSemaphoreFromActiveList(int* semAddr);
 void resetSemaphore(semd_t* s);
 
 /*

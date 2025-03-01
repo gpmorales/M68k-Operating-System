@@ -174,7 +174,7 @@ proc_t* outProc(proc_link* tp, proc_t* p)
     p->p_link[curr_queue_idx].index = ENULL;
     p->qcount--;
 
-    return currProc;
+    return p;
 }
 
 

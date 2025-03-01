@@ -91,6 +91,9 @@
     <ClCompile Include="notes\NucleasPart1.c">
       <Filter>notes</Filter>
     </ClCompile>
+    <ClCompile Include="nucleus\traps\p1.2.c">
+      <Filter>notes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e">
