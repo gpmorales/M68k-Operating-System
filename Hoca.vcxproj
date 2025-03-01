@@ -177,11 +177,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e" />
-    <None Include="h\int.e" />
-    <None Include="h\main.e" />
     <None Include="h\procq.e" />
-    <None Include="h\syscall.e" />
-    <None Include="h\trap.e" />
     <None Include="queues\Makefile" />
     <None Include="queues\p1test3.c" />
     <None Include="queues\README" />

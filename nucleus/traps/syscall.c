@@ -1,7 +1,6 @@
 ﻿#include "../../h/types.h"
 #include "../../h/const.h"
 #include "../../h/procq.e"
-#include "../../h/main.e"
 #include "../../h/asl.e"
 #include "../../h/vpop.h"
 
@@ -21,10 +20,14 @@
 	If the new process cannot be created due to lack of resources (for example no more entries in the process table), an error code of −1 is returned in D2.
 	Otherwise, D2 contains zero upon return.
 */
+
+extern proc_link readyQueue;
+extern void schedule();
+void killprocrecurse(proc_t* p);
+
+
 void createproc()
 {
-	int M = MEMSTART;
-
 	// Grab the interrupted process from the RQ, serving as the parent process
 	proc_t* parentProcess = headQueue(readyQueue);
 
@@ -51,7 +54,7 @@ void createproc()
 		childProcess->parent_proc = parentProcess;
 
 		// Insert child into parent children list
-		if (parentProcess->children_proc != (proc_t*)ENULL) {
+		if (parentProcess->children_proc == (proc_t*)ENULL) {
 			parentProcess->children_proc = childProcess;
 		}
 		else {
@@ -75,39 +78,8 @@ void createproc()
 }
 
 
-/*
-	Apply this to the calling process and all its descendants.
-	Remove it from all semaphore queues (OutBlocked) and the RQ.
-	You will need a recursive function to descend the process tree, deleting each descendant and updating the tree.
-*/
-void killproc() 
-{
-	// Get the about-to-be terminated process from the RQ
-	proc_t* killProcess = headQueue(readyQueue);
-
-	// Remove the current invoking process from the RQ and all ASL queues
-	removeProc(&readyQueue);
-	outBlocked(killProcess);
-
-	// Recurse through all children processes and the child silblings of those children
-	killprocrecurse(killProcess->children_proc);
-
-	// Check if this process's siblings are present, if so update the parent child pointer
-	if (killProcess->sibling_proc != (proc_t*)ENULL) {
-		proc_t* parentProcess = killProcess->parent_proc;
-		parentProcess->children_proc = killProcess->sibling_proc;
-	}
-
-	// Remove all progeny and parent process links
-	freeProc(killProcess);
-
-	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
-	schedule();
-}
-
-
 // Recursive function to terminate process and its children
-void static killprocrecurse(proc_t* process)
+void killprocrecurse(proc_t* process)
 {
 	// Remove the child processes from this layer from all Queues in the ASL and RQ
 	proc_t* childProcess = process->children_proc;
@@ -139,6 +111,37 @@ void static killprocrecurse(proc_t* process)
 
 
 /*
+	Apply this to the calling process and all its descendants.
+	Remove it from all semaphore queues (OutBlocked) and the RQ.
+	You will need a recursive function to descend the process tree, deleting each descendant and updating the tree.
+*/
+void killproc() 
+{
+	// Get the about-to-be terminated process from the RQ
+	proc_t* killProcess = headQueue(readyQueue);
+
+	// Remove the current invoking process from the RQ and all ASL queues
+	removeProc(&readyQueue);
+	outBlocked(killProcess);
+
+	// Recurse through all children processes and the child silblings of those children
+	if (killProcess->children_proc != (proc_t*)ENULL) {
+		killprocrecurse(killProcess->children_proc);
+	}
+
+	// Set the parent child pointer to the killed process's immeadiate sibling
+	proc_t* parentProcess = killProcess->parent_proc;
+	parentProcess->children_proc = killProcess->sibling_proc;
+
+	// Remove all progeny and parent process links
+	freeProc(killProcess);
+
+	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
+	schedule();
+}
+
+
+/*
 	When this instruction is executed, it is interpreted by the nucleus as a set of V and P operations atomically applied to a group of semaphores.
 	Each semaphore and corresponding operation is described in a vpop structure. The vpop structure is defined in "vpop.h".
 	D4 contains the address of the vpop vector, and D3 contains the number of vpops in the vector
@@ -155,51 +158,51 @@ void semop()
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
 	// Get the interrupted process's processor state
-	proc_t* process = headQueue(readyQueue);
+	proc_t* callingProcess = headQueue(readyQueue);
 
 	// Get Vector of operatons to perform on a semaphores
 	vpop* semOperations = (vpop*)SYS_TRAP_OLD_STATE->s_r[4];
 	int len = SYS_TRAP_OLD_STATE->s_r[3];
+	int callingProcessBlocked = FALSE;
 
 	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
 	int i;
 	for (i = 0; i < len; i++) {
 		int op = semOperations[i].op;				// Get operation to be performed on semaphore
 		int* semAddr = semOperations[i].sem;		// Get the semaphore address
-		int currentSemVal = *semAddr;				// Get the semaphore proper
-		*semAddr = currentSemVal + op;				// Update the semaphore
+		int prevSemVal = *semAddr;				// Get the semaphore proper
+		*semAddr = prevSemVal + op;				// Update the semaphore
 
-		// V (+1) on an active semaphore means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
-		if (op == UNLOCK && getSemaphoreFromActiveList(semAddr) != (semd_t*)ENULL) {
+		// V (+1) on an active semaphore (-value) means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
+		if (op == UNLOCK && prevSemVal < 0) {
 
 			// Remove the process at the head of the corresponding Semaphore Queue 
 			proc_t* process = removeBlocked(semAddr);
 			removeSemaphoreFromProcessVector(semAddr, process);
 
 			// If the process is no longer blocked on any Semaphores, then add it back to the RQ
-			if (!blockedBySemaphore(process)) {
+			if (process != (proc_t*)ENULL && process->qcount == 0) {
 				insertProc(&readyQueue, process);
 			}
 		}
 		// P (-1) will decrement the semaphore, if the sem value is negative afterwards, the interrupted process should be blocked
-		else if (op == LOCK) {
+		else if (op == LOCK && prevSemVal <= 0) {
 			// Semaphore has become negative, meaning its blocking at least the process and is now active
-			// The running process at the head of the Queue can be blocked by a P operation however other processes 
-			// can not be blocked since they are not the one requesting resources at this time
-			if (*semAddr < 0) {
-				insertSemaphoreIntoProcess();
-				removeProc(&readyQueue);
-			}
+			// The running process at the head of the Queue can be blocked by a P operation 
+			// we do not want this to prevent other processes from being unblocked, so use a flag
+			insertBlocked(semAddr, callingProcess);
+			callingProcessBlocked = TRUE;
 		}
 	}
-	// 1 P at most (blocking other processes that havent requested a resource is non-sensical)
-	// A large number of V operations, those can pertain to other resources/processes or to this process capturing multiple semaphores
 
-	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
-	process->p_s = *SYS_TRAP_OLD_STATE;
+	if (callingProcessBlocked) {
+		// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
+		callingProcess->p_s = *SYS_TRAP_OLD_STATE;
+		removeProc(&readyQueue);
 
-	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
-	schedule();
+		// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
+		schedule();
+	}
 }
 
 

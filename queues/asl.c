@@ -5,7 +5,7 @@
 #include "../h/types.h"
 #include "../h/const.h"
 #include "../h/procq.e"
-#include "../h/asl.h"
+#include "../h/asl.e"
 
 semd_t semdTable[MAXPROC];		            /* All semaphore entries are placed in this table */
 semd_t* semdFree_h = (semd_t*)ENULL;	    /* List of inactive semaphores */
@@ -17,7 +17,6 @@ void removeSemaphoreFromActiveList(semd_t* s);
 int addSemaphoreToProcessVector(int* semAddr, proc_t* p);
 semd_t* allocateSemaphoreFromFreeList();
 void resetSemaphore(semd_t* s);
-
 
 /*
     Insert the process table entry pointed to by p at the tail of the process queue associated 
@@ -123,6 +122,7 @@ proc_t* outBlocked(proc_t* p)
 
         // Remove this semaphore from the process's semvac vector
         if (removalResult) {
+            // For each semaphore that was blocked on
             removeSemaphoreFromProcessVector(semAddr, p);
             processRemoved = TRUE;
         }
@@ -283,8 +283,7 @@ void insertSemaphoreIntoActiveList(semd_t* s)
 
 
 /*
-    Remove the Semaphore Descriptor associated with the given address 
-    from the ASL.
+    Remove the Semaphore Descriptor associated with the given address from the ASL.
 */
 void removeSemaphoreFromActiveList(semd_t* s)
 {
@@ -400,21 +399,4 @@ void resetSemaphore(semd_t* s)
     s->s_semAdd = (int*)ENULL;
     s->s_link.index = ENULL;
     s->s_link.next = (proc_t*)ENULL;
-}
-
-
-
-/*
-    Returns true if the process is blocked by at least one Semaphore
-*/
-int blockedBySemaphore(proc_t* p) {
-    // Iterate through hte process's vector of active semaphores
-	int i;
-	for (i = 0; i < SEMMAX; i++) {
-		if (p->semvec[i] != (int*)ENULL) {
-            return TRUE;
-		}
-	}
-
-	return FALSE;
 }

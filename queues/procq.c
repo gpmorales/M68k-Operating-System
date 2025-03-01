@@ -4,7 +4,7 @@
 */
 #include "../h/const.h"
 #include "../h/types.h"
-#include "../h/procq.h"
+#include "../h/procq.e"
 
 #define FREE_LIST 0
 proc_t procTable[MAXPROC];		            /* Universal table of all processes */
@@ -15,6 +15,7 @@ char msgbuf[128];	            /* nonrecoverable error message before shut down *
 /* Local Utility Routines */
 void panic(char* message);
 int findAvailableQueueSlot(proc_t* p);
+void resetProcess(proc_t* p);
 
 
 /*
