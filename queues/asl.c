@@ -87,7 +87,6 @@ proc_t* removeBlocked(int* semAddr)
     if (tp->next == (proc_t*)ENULL) {
         // Remove the Sem descriptor from the ASL and it the Free List
         removeSemaphoreFromActiveList(semaphoreDescriptor);
-        returnSemaphoreToFreeList(semaphoreDescriptor);
     }
 
     // Remove this semaphore from the process's semvac vector
@@ -118,20 +117,19 @@ proc_t* outBlocked(proc_t* p)
             continue;
         }
 
-        int removalResult = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
+        int wasRemoved = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
 
         // Remove this semaphore from the process's semvac vector
-        if (removalResult) {
+        if (wasRemoved) {
             // For each semaphore that was blocked on
             removeSemaphoreFromProcessVector(semAddr, p);
             processRemoved = TRUE;
         }
 
         // If this Active Semaphore's process queue becomes empty, remove it from the ASL
-        if (removalResult && tp->next == (proc_t*)ENULL) {
+        if (wasRemoved && tp->next == (proc_t*)ENULL) {
             semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
             removeSemaphoreFromActiveList(semaphoreDescriptor);
-			returnSemaphoreToFreeList(semaphoreDescriptor);
             semaphoreDescriptor = nextSemaphoreDescriptor;
             continue;
         }
@@ -204,7 +202,8 @@ void returnSemaphoreToFreeList(semd_t* s)
     if (s == (semd_t*)ENULL) {
         return;
     }
-    resetSemaphore(s);
+
+	resetSemaphore(s);
 
     //  When the free list is empty, let s be the first element
     if (semdFree_h == (semd_t*)ENULL) {
@@ -297,7 +296,7 @@ void removeSemaphoreFromActiveList(semd_t* s)
     // ASL with single element
     if (semd_h == s && nextSemd == (semd_t*)ENULL && prevSemd == (semd_t*)ENULL) {
         semd_h = (semd_t*)ENULL;
-        resetSemaphore(s);
+		returnSemaphoreToFreeList(s);
         return;
     }
 
@@ -305,7 +304,7 @@ void removeSemaphoreFromActiveList(semd_t* s)
     if (s == semd_h) {
         semd_h = nextSemd;
         nextSemd->s_prev = (semd_t*)ENULL;
-        resetSemaphore(s);
+		returnSemaphoreToFreeList(s);
         return;
     }
 
@@ -314,7 +313,7 @@ void removeSemaphoreFromActiveList(semd_t* s)
     if (nextSemd != (semd_t*)ENULL) {
         nextSemd->s_prev = prevSemd;
     }
-    resetSemaphore(s);
+	returnSemaphoreToFreeList(s);
 }
 
 

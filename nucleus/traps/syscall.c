@@ -81,31 +81,26 @@ void createproc()
 // Recursive function to terminate process and its children
 void killprocrecurse(proc_t* process)
 {
-	// Remove the child processes from this layer from all Queues in the ASL and RQ
+	if (process == (proc_t*)ENULL) {
+		return;
+	}
+
+	// DFS into the last child, then go for silbings of those children
 	proc_t* childProcess = process->children_proc;
-
 	if (childProcess != (proc_t*)ENULL) {
-		outBlocked(childProcess); 
-		outProc(&readyQueue, childProcess);
-
-		// Recurse through all children processes 
 		killprocrecurse(childProcess);
-		childProcess = childProcess->children_proc;
 	}
 
-	// Remove sibling processes from  queues in the ASL and from RQ
 	proc_t* siblingProcess = process->sibling_proc;
-
 	if (siblingProcess != (proc_t*)ENULL) {
-		outBlocked(siblingProcess); 
-		outProc(&readyQueue, siblingProcess);
-
-		// Recurse through all sibling processes 
 		killprocrecurse(siblingProcess);
-		siblingProcess = siblingProcess->sibling_proc;
 	}
 
-	// Backtrack and remove all of the process's progeny links
+	// Backtrack and remove all of the process's progeny links and from ASL queues
+	outProc(&readyQueue, process);
+	outBlocked(process);
+
+	// Remove all progeny links
 	freeProc(process);
 }
 
@@ -120,20 +115,20 @@ void killproc()
 	// Get the about-to-be terminated process from the RQ
 	proc_t* killProcess = headQueue(readyQueue);
 
+	// Kill family tree
+	killprocrecurse(killProcess);
+
+	// Set the parent child pointer to the killed process's immeadiate sibling
+	proc_t* parentProcess = killProcess->parent_proc;
+	if (parentProcess != (proc_t*)ENULL) {
+		parentProcess->children_proc = killProcess->sibling_proc;
+	}
+
 	// Remove the current invoking process from the RQ and all ASL queues
 	removeProc(&readyQueue);
 	outBlocked(killProcess);
 
-	// Recurse through all children processes and the child silblings of those children
-	if (killProcess->children_proc != (proc_t*)ENULL) {
-		killprocrecurse(killProcess->children_proc);
-	}
-
-	// Set the parent child pointer to the killed process's immeadiate sibling
-	proc_t* parentProcess = killProcess->parent_proc;
-	parentProcess->children_proc = killProcess->sibling_proc;
-
-	// Remove all progeny and parent process links
+	// Remove all progeny links
 	freeProc(killProcess);
 
 	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
@@ -150,7 +145,6 @@ void killproc()
 	– The V’s on active semaphores will remove the process at the head of that Sem PTE Q, but only puts it back on the
 	  RQ if its not on additional semaphore Q’
 	– Returns to the process now at the head of the RQ.
-
 */
 void semop()
 {
@@ -174,11 +168,13 @@ void semop()
 		*semAddr = prevSemVal + op;				// Update the semaphore
 
 		// V (+1) on an active semaphore (-value) means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
-		if (op == UNLOCK && prevSemVal < 0) {
+		if (op == UNLOCK) {
 
-			// Remove the process at the head of the corresponding Semaphore Queue 
+			// Do nothing if the semaphore was not active to begin with, as resources are already free
+			if (prevSemVal >= 0) continue;
+
+			// Remove the process at the head of the corresponding Semaphore Queue and update Semvec
 			proc_t* process = removeBlocked(semAddr);
-			removeSemaphoreFromProcessVector(semAddr, process);
 
 			// If the process is no longer blocked on any Semaphores, then add it back to the RQ
 			if (process != (proc_t*)ENULL && process->qcount == 0) {
