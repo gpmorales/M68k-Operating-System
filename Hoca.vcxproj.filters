@@ -92,7 +92,7 @@
       <Filter>notes</Filter>
     </ClCompile>
     <ClCompile Include="nucleus\traps\p1.2.c">
-      <Filter>notes</Filter>
+      <Filter>nucleus\traps</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -113,6 +113,9 @@
     </None>
     <None Include="queues\README.instructions">
       <Filter>queues</Filter>
+    </None>
+    <None Include="nucleus\traps\Makefile">
+      <Filter>nucleus\traps</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

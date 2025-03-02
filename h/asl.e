@@ -6,6 +6,3 @@ extern proc_t *outBlocked(proc_t *p);
 extern proc_t *headBlocked(int *semAddr);
 extern void initSemd();
 extern int headASL();
-
-extern int removeSemaphoreFromProcessVector(int* semAddr, proc_t* p);
-extern void insertSemaphoreIntoActiveList(semd_t* s);

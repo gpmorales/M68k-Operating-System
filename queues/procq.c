@@ -115,7 +115,7 @@ proc_t* removeProc(proc_link* tp)
 proc_t* outProc(proc_link* tp, proc_t* p)
 {
     // Handle empty process queue
-    if (tp->next == (proc_t*)ENULL) {
+    if (tp == (proc_link*)ENULL || tp->next == (proc_t*)ENULL) {
         return (proc_t*)ENULL;
     }
 
@@ -256,13 +256,21 @@ void initProc()
 
     // Traverse procTable
     int i;
-    for (i = 0; i < MAXPROC - 1; i++) 
+    for (i = 0; i < MAXPROC; i++) 
     {
         // Set the current nodes next to the next process in the table
+		// Remove all processor states
         resetProcess(&procTable[i]);
-        procTable[i].p_link[FREE_LIST].next = &procTable[i + 1];
+		procTable[i].mm_trap_old_state = (state_t*)ENULL;
+		procTable[i].mm_trap_new_state = (state_t*)ENULL;
+		procTable[i].sys_trap_old_state = (state_t*)ENULL;
+		procTable[i].sys_trap_new_state = (state_t*)ENULL;
+		procTable[i].prog_trap_old_state = (state_t*)ENULL;
+		procTable[i].prog_trap_new_state = (state_t*)ENULL;
+        if (i != 19) {
+			procTable[i].p_link[FREE_LIST].next = &procTable[i + 1];
+        }
     }
-    procTable[MAXPROC - 1].p_link[FREE_LIST].next = (proc_t*)ENULL;
 }
 
 
@@ -295,14 +303,6 @@ void resetProcess(proc_t* p)
     p->total_processor_time = 0;
     p->last_start_time = 0;
 
-	// Remove all processor states
-	p->mm_trap_old_state = (state_t*)ENULL;
-	p->mm_trap_new_state = (state_t*)ENULL;
-	p->sys_trap_old_state = (state_t*)ENULL;
-	p->sys_trap_new_state = (state_t*)ENULL;
-	p->prog_trap_old_state = (state_t*)ENULL;
-	p->prog_trap_new_state = (state_t*)ENULL;
-
     // Remove any semaphores or proc links associated with this proc_t entry
     int i;
     for (i = 0; i < SEMMAX; i++) {
@@ -313,8 +313,8 @@ void resetProcess(proc_t* p)
 
     // Remove all progeny links
 	p->parent_proc = (proc_t*)ENULL;
-	p->children_proc = (proc_t*)ENULL;
 	p->sibling_proc = (proc_t*)ENULL;
+	p->children_proc = (proc_t*)ENULL;
 }
 
 

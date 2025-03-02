@@ -94,8 +94,17 @@ void killprocrecurse(proc_t* process)
 	}
 
 	// Backtrack and remove all of the process's progeny links and from ASL queues
-	outProc(&readyQueue, process);
-	outBlocked(process);
+	if (outBlocked(process) == (proc_t*)ENULL) {
+		outProc(&readyQueue, process);
+	}
+	else {
+		int i;
+		for (i = 0; i < SEMMAX; i++) {
+			if (process->semvec[i] != (int*)ENULL) {
+				*(process->semvec[i]) = *(process->semvec[i]) + 1;
+			}
+		}
+	}
 	freeProc(process);
 }
 
@@ -115,9 +124,6 @@ void killproc()
 	if (parentProcess != (proc_t*)ENULL) {
 		parentProcess->children_proc = killProcess->sibling_proc;
 	}
-
-	// Remove the current invoking process from the RQ and all ASL queues
-	removeProc(&readyQueue);
 
 	// Kill family tree
 	killprocrecurse(killProcess);

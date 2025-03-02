@@ -14,6 +14,7 @@ semd_t* semd_h = (semd_t*)ENULL;	        /* Pointer to the head of the ASL */
 /* Local Utility Routines */
 void returnSemaphoreToFreeList(semd_t* s);
 void removeSemaphoreFromActiveList(semd_t* s);
+void insertSemaphoreIntoActiveList(semd_t* s);
 int addSemaphoreToProcessVector(int* semAddr, proc_t* p);
 semd_t* allocateSemaphoreFromFreeList();
 semd_t* getSemaphoreFromActiveList(int* semAddr);
@@ -111,31 +112,26 @@ proc_t* outBlocked(proc_t* p)
         // Attempt to remove the given process from this ASL entry's proc queue
         proc_link* tp = &semaphoreDescriptor->s_link;
         int* semAddr = semaphoreDescriptor->s_semAdd;
+		semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
 
-        // The process queue is empty
-        if (tp->next == (proc_t*)ENULL) {
-            semaphoreDescriptor = semaphoreDescriptor->s_next; 
-        }
-        else {
-			int wasRemoved = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
+		int wasRemoved = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
 
-			// Remove this semaphore from the process's semvac vector
-			if (wasRemoved) {
-				// For each semaphore that was blocked on
-				removeSemaphoreFromProcessVector(semAddr, p);
-				processRemoved = TRUE;
-			}
+		// Remove this semaphore from the process's semvac vector
+        if (wasRemoved) {
+            // We found and removed p from this semaphores's queue
+            *semAddr = *semAddr + 1;
+
+            // Remove semAddr from p->semvec[]
+			removeSemaphoreFromProcessVector(semAddr, p);
+			processRemoved = TRUE;
 
 			// If this Active Semaphore's process queue becomes empty, remove it from the ASL
-			if (wasRemoved && tp->next == (proc_t*)ENULL) {
-				semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
-				removeSemaphoreFromActiveList(semaphoreDescriptor);
-				semaphoreDescriptor = nextSemaphoreDescriptor;
-			}
-            else {
-				semaphoreDescriptor = semaphoreDescriptor->s_next;
+            if (tp->next == (proc_t*)ENULL) {
+                removeSemaphoreFromActiveList(semaphoreDescriptor);
             }
         }
+
+        semaphoreDescriptor = nextSemaphoreDescriptor;
     }
 
     // If the process did not appear in any process queue, return ENULL
@@ -152,7 +148,7 @@ proc_t* headBlocked(int* semAddr)
     semd_t* semaphoreDescriptor = getSemaphoreFromActiveList(semAddr);
 
     // There is no semaphore descriptor associated with this address
-    if (semaphoreDescriptor == (semd_t*)ENULL) {
+    if (semaphoreDescriptor == (semd_t*)ENULL || semaphoreDescriptor->s_link.next == (proc_t*)ENULL) {
         return (proc_t*)ENULL;
     }
 
@@ -168,19 +164,19 @@ void initSemd()
 {
     // Use the first element of semdTable as free list head
     semdFree_h = &semdTable[0];
-    semdFree_h->s_prev = (semd_t*)ENULL;
+    semdTable[0].s_prev = (semd_t*)ENULL;
+    semdTable[0].s_next = &semdTable[1];
 
-    semd_t* prevSemd = semdFree_h;;
     int i;
-    for (i = 1; i < MAXPROC; i++) {
-        semd_t* currSemd = &semdTable[i];
-        currSemd->s_prev = prevSemd;
-        prevSemd->s_next = currSemd;
-        prevSemd = currSemd;
+    for (i = 1; i < 19; i++) {
+		semdTable[i].s_next = &semdTable[i + 1];
+		semdTable[i].s_prev = &semdTable[i - 1];
     }
 
+    semdTable[19].s_next = (semd_t*)ENULL;
+	semdTable[19].s_prev = &semdTable[18];
     // Null terminate the free list
-    prevSemd->s_next = (semd_t*)ENULL;
+    semd_h = (semd_t*)ENULL;
 }
 
 
@@ -380,7 +376,6 @@ int removeSemaphoreFromProcessVector(int* semAddr, proc_t* p)
     for (i = 0; i < SEMMAX; i++) {
         int* processActiveSemAddr = activeSemaphoreAddresses[i];
         if (semAddr == processActiveSemAddr) {
-            *semAddr = *semAddr + 1;
             activeSemaphoreAddresses[i] = (int*)ENULL;
             return TRUE;
         }
