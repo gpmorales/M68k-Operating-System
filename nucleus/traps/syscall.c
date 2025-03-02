@@ -87,20 +87,15 @@ void killprocrecurse(proc_t* process)
 
 	// DFS into the last child, then go for siblings of those children
 	proc_t* childProcess = process->children_proc;
-	if (childProcess != (proc_t*)ENULL) {
+	while (childProcess != (proc_t*)ENULL) {
+		proc_t* nextSibling = childProcess->sibling_proc;
 		killprocrecurse(childProcess);
-	}
-
-	proc_t* siblingProcess = process->sibling_proc;
-	if (siblingProcess != (proc_t*)ENULL) {
-		killprocrecurse(siblingProcess);
+		childProcess = nextSibling;
 	}
 
 	// Backtrack and remove all of the process's progeny links and from ASL queues
 	outProc(&readyQueue, process);
 	outBlocked(process);
-
-	// Remove all progeny links
 	freeProc(process);
 }
 
@@ -115,9 +110,6 @@ void killproc()
 	// Get the about-to-be terminated process from the RQ
 	proc_t* killProcess = headQueue(readyQueue);
 
-	// Kill family tree
-	killprocrecurse(killProcess->children_proc);
-
 	// Set the parent child pointer to the killed process's immeadiate sibling
 	proc_t* parentProcess = killProcess->parent_proc;
 	if (parentProcess != (proc_t*)ENULL) {
@@ -126,10 +118,9 @@ void killproc()
 
 	// Remove the current invoking process from the RQ and all ASL queues
 	removeProc(&readyQueue);
-	outBlocked(killProcess);
 
-	// Remove all progeny links
-	freeProc(killProcess);
+	// Kill family tree
+	killprocrecurse(killProcess);
 
 	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
 	schedule();
@@ -170,28 +161,31 @@ void semop()
 
 		// V (+1) on an active semaphore (-value) means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
 		if (op == UNLOCK) {
+			if (prevSemVal < 0) {
+				// Remove the process at the head of the corresponding Semaphore Queue and update Semvec
+				proc_t* process = removeBlocked(semAddr);
 
-			// Do nothing if the semaphore was not active, as resources are already free
-			if (prevSemVal >= 0) continue;
-
-			// Remove the process at the head of the corresponding Semaphore Queue and update Semvec
-			proc_t* process = removeBlocked(semAddr);
-
-			// If the process is no longer blocked on any Semaphores, then add it back to the RQ
-			if (process != (proc_t*)ENULL && process->qcount == 0) {
-				insertProc(&readyQueue, process);
+				// If the process is no longer blocked on any Semaphores, then add it back to the RQ
+				if (process != (proc_t*)ENULL && process->qcount == 0) {
+					insertProc(&readyQueue, process);
+				}
+			}
+			else {
+				// Do nothing if the semaphore was not active, as resources are already free
 			}
 		}
 		// P (-1) will decrement the semaphore, if the sem value is negative afterwards, the interrupted process should be blocked
 		else if (op == LOCK) {
-			// Do nothing if the semaphore still has resources
-			if (prevSemVal > 0) continue;
-
-			// Semaphore has become negative, meaning its blocking at least the process and is now active
-			// The running process at the head of the Queue can be blocked by a P operation 
-			// we do not want this to prevent other processes from being unblocked, so use a flag
-			insertBlocked(semAddr, callingProcess);
-			callingProcessBlocked = TRUE;
+			if (prevSemVal <= 0) {
+				// Semaphore has become negative, meaning its blocking at least the process and is now active
+				// The running process at the head of the Queue can be blocked by a P operation 
+				// we do not want this to prevent other processes from being unblocked, so use a flag
+				insertBlocked(semAddr, callingProcess);
+				callingProcessBlocked = TRUE;
+			}
+			else {
+				// Do nothing if the semaphore still has resources
+			}
 		}
 	}
 

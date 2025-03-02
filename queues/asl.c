@@ -115,27 +115,27 @@ proc_t* outBlocked(proc_t* p)
         // The process queue is empty
         if (tp->next == (proc_t*)ENULL) {
             semaphoreDescriptor = semaphoreDescriptor->s_next; 
-            continue;
         }
+        else {
+			int wasRemoved = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
 
-        int wasRemoved = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
+			// Remove this semaphore from the process's semvac vector
+			if (wasRemoved) {
+				// For each semaphore that was blocked on
+				removeSemaphoreFromProcessVector(semAddr, p);
+				processRemoved = TRUE;
+			}
 
-        // Remove this semaphore from the process's semvac vector
-        if (wasRemoved) {
-            // For each semaphore that was blocked on
-            removeSemaphoreFromProcessVector(semAddr, p);
-            processRemoved = TRUE;
+			// If this Active Semaphore's process queue becomes empty, remove it from the ASL
+			if (wasRemoved && tp->next == (proc_t*)ENULL) {
+				semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
+				removeSemaphoreFromActiveList(semaphoreDescriptor);
+				semaphoreDescriptor = nextSemaphoreDescriptor;
+			}
+            else {
+				semaphoreDescriptor = semaphoreDescriptor->s_next;
+            }
         }
-
-        // If this Active Semaphore's process queue becomes empty, remove it from the ASL
-        if (wasRemoved && tp->next == (proc_t*)ENULL) {
-            semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
-            removeSemaphoreFromActiveList(semaphoreDescriptor);
-            semaphoreDescriptor = nextSemaphoreDescriptor;
-            continue;
-        }
-
-        semaphoreDescriptor = semaphoreDescriptor->s_next;
     }
 
     // If the process did not appear in any process queue, return ENULL
@@ -380,6 +380,7 @@ int removeSemaphoreFromProcessVector(int* semAddr, proc_t* p)
     for (i = 0; i < SEMMAX; i++) {
         int* processActiveSemAddr = activeSemaphoreAddresses[i];
         if (semAddr == processActiveSemAddr) {
+            *semAddr = *semAddr + 1;
             activeSemaphoreAddresses[i] = (int*)ENULL;
             return TRUE;
         }
