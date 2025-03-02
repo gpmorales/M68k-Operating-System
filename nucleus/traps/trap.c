@@ -113,7 +113,7 @@ void static trapmmhandler()
 		*process->mm_trap_old_state = *MM_TRAP_OLD_STATE;
 
 		// Load the Handler State routine specifics stored in this process's New State struct ptr (address set in SYS5) onto the CPU
-		LDST(&process->mm_trap_new_state);
+		LDST(process->mm_trap_new_state);
 	}
 	else {
 		// No handler address in the PTE for this trap, kill the interuupted process
@@ -136,10 +136,10 @@ void static trapproghandler()
 		*process->prog_trap_old_state = *PROG_TRAP_OLD_STATE;
 
 		// Load the Handler State routine specifics stored in this process's New State struct ptr (address set in SYS5) onto the CPU
-		LDST(&process->prog_trap_new_state);
+		LDST(process->prog_trap_new_state);
 	} 
 	else {
-		// No handler address in the PTE for this trap, kill the interuupted process
+		// No handler address in the PTE for this trap, kill the interrupted process
 		killproc();
 	}
 }

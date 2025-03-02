@@ -168,13 +168,14 @@ void initSemd()
     semdTable[0].s_next = &semdTable[1];
 
     int i;
-    for (i = 1; i < 19; i++) {
+    for (i = 1; i < MAXPROC - 1; i++) {
 		semdTable[i].s_next = &semdTable[i + 1];
 		semdTable[i].s_prev = &semdTable[i - 1];
     }
 
-    semdTable[19].s_next = (semd_t*)ENULL;
-	semdTable[19].s_prev = &semdTable[18];
+    semdTable[MAXPROC - 1].s_next = (semd_t*)ENULL;
+	semdTable[MAXPROC - 1].s_prev = &semdTable[MAXPROC - 2];
+
     // Null terminate the free list
     semd_h = (semd_t*)ENULL;
 }

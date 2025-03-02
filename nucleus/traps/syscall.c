@@ -325,7 +325,7 @@ void trapsysdefault()
 		*process->sys_trap_old_state = *SYS_TRAP_OLD_STATE;
 
 		// Load the Handler State routine specifics stored in this process's SYS New State struct ptr (address set in SYS5) onto the CPU
-		LDST(&process->sys_trap_new_state);
+		LDST(process->sys_trap_new_state);
 	}
 	else {
 		// No handler address in the PTE for this trap, kill the process at the head of RQ
