@@ -66,8 +66,19 @@ void static trapsyshandler()
 		// Update the system trap old state struct -> prog trap type
 		SYS_TRAP_OLD_STATE->s_tmp.tmp_pr.pr_typ = PRIVILEGE;
 
-		// Pass up this trap to the appropiate prog handler
-		trapproghandler();
+		// Grab the interrupted process from the RQ
+		proc_t* process = headQueue(readyQueue);
+
+		// Ensure the process's old state and new state areas have been properly initialized
+		// In this case we will update the old prog state to the current sys trap state to switch modes
+		if (process->prog_trap_old_state != (state_t*)ENULL && process->prog_trap_new_state != (state_t*)ENULL) {
+			*process->prog_trap_old_state = *SYS_TRAP_OLD_STATE;
+			LDST(process->prog_trap_new_state);
+		}
+		else {
+			// No handler address in the PTE for this trap, kill the interrupted process
+			killproc();
+		}
 	}
 
 	// For traps that require SYS calls 1- 6, we only need to use the Process's SYS old trap state struct to determine the exact handler needed

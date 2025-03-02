@@ -277,11 +277,11 @@ void trapstate()
 		}
 	}
 
-	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
-	process->p_s = *SYS_TRAP_OLD_STATE;
-
-	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
-	schedule();
+//	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
+//	process->p_s = *SYS_TRAP_OLD_STATE;
+//
+//	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
+//	schedule();
 }
 
 
