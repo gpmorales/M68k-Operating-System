@@ -119,7 +119,7 @@ proc_t* outBlocked(proc_t* p)
 		// Remove this semaphore from the process's semvac vector
         if (wasRemoved) {
             // We found and removed p from this semaphores's queue
-            *semAddr = *semAddr + 1;
+            *semAddr = *semAddr + 1; // *******
 
             // Remove semAddr from p->semvec[]
 			removeSemaphoreFromProcessVector(semAddr, p);

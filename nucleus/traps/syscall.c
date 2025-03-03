@@ -87,24 +87,18 @@ void killprocrecurse(proc_t* process)
 
 	// DFS into the last child, then go for siblings of those children
 	proc_t* childProcess = process->children_proc;
-	while (childProcess != (proc_t*)ENULL) {
-		proc_t* nextSibling = childProcess->sibling_proc;
+	if (childProcess != (proc_t*)ENULL) {
 		killprocrecurse(childProcess);
-		childProcess = nextSibling;
 	}
 
 	// Backtrack and remove all of the process's progeny links and from ASL queues
-	if (outBlocked(process) == (proc_t*)ENULL) {
-		outProc(&readyQueue, process);
+	proc_t* nextSibling = childProcess->sibling_proc;
+	if (nextSibling != (proc_t*)ENULL) {
+		killprocrecurse(nextSibling);
 	}
-	else {
-		int i;
-		for (i = 0; i < SEMMAX; i++) {
-			if (process->semvec[i] != (int*)ENULL) {
-				*(process->semvec[i]) = *(process->semvec[i]) + 1;
-			}
-		}
-	}
+
+	outProc(&readyQueue, process);
+	outBlocked(process);
 	freeProc(process);
 }
 
@@ -199,8 +193,6 @@ void semop()
 		// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
 		callingProcess->p_s = *SYS_TRAP_OLD_STATE;
 		removeProc(&readyQueue);
-
-		// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
 		schedule();
 	}
 }
@@ -277,11 +269,11 @@ void trapstate()
 		}
 	}
 
-//	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
-//	process->p_s = *SYS_TRAP_OLD_STATE;
-//
-//	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
-//	schedule();
+	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
+	process->p_s = *SYS_TRAP_OLD_STATE;
+
+	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
+	schedule();
 }
 
 
