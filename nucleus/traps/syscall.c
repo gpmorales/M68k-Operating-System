@@ -142,9 +142,6 @@ void semop()
 	// The interrupted process's state is saved in SYS_TRAP_OLD_STATE, which has the vpop vector address in D3
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
-	// Get the interrupted process's processor state
-	proc_t* callingProcess = headQueue(readyQueue);
-
 	// Get Vector of operatons to perform on a semaphores
 	vpop* semOperations = (vpop*)SYS_TRAP_OLD_STATE->s_r[4];
 	int len = SYS_TRAP_OLD_STATE->s_r[3];
@@ -180,8 +177,10 @@ void semop()
 				// Semaphore has become negative, meaning its blocking at least the process and is now active
 				// The running process at the head of the Queue can be blocked by a P operation 
 				// we do not want this to prevent other processes from being unblocked, so use a flag
-				insertBlocked(semAddr, callingProcess);
 				callingProcessBlocked = TRUE;
+				proc_t* callingProcess = headQueue(readyQueue);
+				callingProcess->p_s = *SYS_TRAP_OLD_STATE;
+				insertBlocked(semAddr, callingProcess);
 			}
 			else {
 				// Do nothing if the semaphore still has resources
@@ -191,7 +190,6 @@ void semop()
 
 	if (callingProcessBlocked) {
 		// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
-		callingProcess->p_s = *SYS_TRAP_OLD_STATE;
 		removeProc(&readyQueue);
 		schedule();
 	}
