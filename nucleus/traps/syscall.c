@@ -67,12 +67,6 @@ void createproc(state_t* old_state)
 		// Add child process to the tail of RQ
 		insertProc(&readyQueue, childProcess);
 	}
-
-//	// Update the parent process's processor state by setting the ps field to the OLD SYS PROCESS STATE area
-//	parentProcess->p_s = *SYS_TRAP_OLD_STATE;
-//
-//	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
-//	schedule();
 }
 
 
@@ -148,11 +142,11 @@ void killproc(proc_t* process)
 */
 void semop(state_t* old_state)
 {
+	int callingProcessBlocked = FALSE;
+
 	// The interrupted process's state is saved in old_state (SYS)
 	int len = old_state->s_r[3];
 	vpop* semOperations = (vpop*)old_state->s_r[4];
-
-	int callingProcessBlocked = FALSE;
 
 	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
 	int i;
@@ -162,23 +156,8 @@ void semop(state_t* old_state)
 		int prevSemVal = *semAddr;				// Get the semaphore proper
 		*semAddr = prevSemVal + op;				// Update the semaphore
 
-		// V (+1) on an active semaphore (-value) means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
-		if (op == UNLOCK) {
-			if (prevSemVal < 0) {
-				// Remove the process at the head of the corresponding Semaphore Queue and update Semvec
-				proc_t* process = removeBlocked(semAddr);
-
-				// If the process is no longer blocked on any Semaphores, then add it back to the RQ
-				if (process != (proc_t*)ENULL && process->qcount == 0) {
-					insertProc(&readyQueue, process);
-				}
-			}
-			else {
-				// Do nothing if the semaphore was not active, as resources are already free
-			}
-		}
 		// P (-1) will decrement the semaphore, if the sem value is negative afterwards, the interrupted process should be blocked
-		else if (op == LOCK) {
+		if (op == LOCK) {
 			if (prevSemVal <= 0) {
 				// Semaphore has become negative, meaning its blocking at least the process and is now active
 				// The running process at the head of the Queue can be blocked by a P operation 
@@ -190,6 +169,21 @@ void semop(state_t* old_state)
 			}
 			else {
 				// Do nothing if the semaphore still has resources
+			}
+		}
+		// V (+1) on an active semaphore (-value) means a resource has been freed, allowing the next blocked process on that Semaphore to maybe be put back on RQ
+		else if (op == UNLOCK) {
+			if (prevSemVal < 0) {
+				// Remove the process at the head of the corresponding Semaphore Queue and update Semvec
+				proc_t* process = removeBlocked(semAddr);
+
+				// If the process is no longer blocked on any Semaphores, then add it back to the RQ
+				if (process != (proc_t*)ENULL && process->qcount == 0) {
+					insertProc(&readyQueue, process);
+				}
+			}
+			else {
+				// Do nothing if the semaphore was not active, as resources are already free
 			}
 		}
 	}
@@ -271,12 +265,6 @@ void trapstate(state_t* old_state)
 			killproc(process);
 		}
 	}
-
-//	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
-//	process->p_s = *SYS_TRAP_OLD_STATE;
-//
-//	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
-//	schedule();
 }
 
 
@@ -294,11 +282,5 @@ void getcputime(state_t* old_state)
 
 	// Get the time spent on the CPU from the process
 	old_state->s_r[2] = process->total_processor_time;
-
-//	// Update the processor state by setting the proc_t state ps to the OLD SYS PROCESS STATE area
-//	process->p_s = *old_state;
-//
-//	// Call schedule to exit this kernel routine and switch the execution flow back the interrupted process
-//	schedule();
 }
 

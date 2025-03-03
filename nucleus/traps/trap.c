@@ -7,7 +7,6 @@
 #include "../../h/util.h"
 #include "../../h/procq.e"				
 
-
 /*
 	This module handles the traps, it has the following static functions:
 	trapinit(), trap-syshandler(), trapmmhandler(), and trapproghandler()
@@ -27,9 +26,6 @@
 	- void static trapmmhandler():
 	- void static trapproghandler():
 	These functions will pass up memory management and program traps OR terminate the process.
-
-	NOTE: ONLY PROCESSES THAT FINISH OR ARE BLOCKED BY A SEMAPHORE ARE REMOVED FROM THE RQ
-	WE'RE KEEPING PROCESSES AT THE HEAD OF THE QUEUE WHILE THEY EXECUTE, ONLY REMOVING THEM WHEN THEY TERMINATE
 */
 
 state_t* PROG_TRAP_OLD_STATE;
@@ -50,6 +46,7 @@ void trapsysdefault(proc_t* p, state_t* s);
 void updateTotalTimeOnProcessor(proc_t* p);
 void updateLastStartTime(proc_t* p);
 
+
 /*
 	When a trap/exception occurs, the hardware auto-saves the interrupted process state to the designated trap's old state area (0x800, 0x900, 0x930)
 
@@ -69,7 +66,6 @@ void static trapsyshandler()
 	// We remove the process from the CPU, if it was running prev, we save the time slice
 	// process --> kernel routine
 	proc_t* process = headQueue(readyQueue);
-
 	updateTotalTimeOnProcessor(process);
 
 	// Case where that the invoking process is NOT in supervisor mode and is a SYS call we handle
@@ -103,8 +99,10 @@ void static trapsyshandler()
 			trapsysdefault(process, SYS_TRAP_OLD_STATE);
 			break;
 	}
-	// Note that for routines SYS1-6, we return the execution flow to the original process via schedule and LDST()
+
 	updateLastStartTime(process);
+
+	// Note that for routines SYS1-6, we return the execution flow to the original process via LDST()
 	LDST(SYS_TRAP_OLD_STATE);
 }
 
@@ -252,27 +250,27 @@ void trapinit()
 	// Allocate New and Old State Areas for Program Traps
 	PROG_TRAP_OLD_STATE = (state_t*)BEGINTRAP;				  // Set pointer to address in Memory -> 76 bytes
 	state_t* PROG_TRAP_NEW_STATE = PROG_TRAP_OLD_STATE + 1;   // Offset for New State area
-	PROG_TRAP_NEW_STATE->s_sr.ps_int = 7; 				      // All interrupts disabled for process trap handler
 	PROG_TRAP_NEW_STATE->s_sr.ps_m = 0;	 				      // Set memory management to physical addressing (no process virtualization)
 	PROG_TRAP_NEW_STATE->s_sr.ps_s = 1;   				      // Switch to Supervisor Mode
+	PROG_TRAP_NEW_STATE->s_sr.ps_int = 7; 				      // All interrupts disabled for process trap handler
 	PROG_TRAP_NEW_STATE->s_sp = MEMSTART;					  // Set the global stack to the top, where the Kernel memory chunk is allocated
 	PROG_TRAP_NEW_STATE->s_pc = (int)trapproghandler;	      // The address for this specific handler
 
 	// Allocate New and Old State Areas for Memory Management Traps
 	MM_TRAP_OLD_STATE = (state_t*)0x898;					  // Set pointer to address in Memory -> 76 bytes
 	state_t* MM_TRAP_NEW_STATE = MM_TRAP_OLD_STATE + 1;       // Offset for New State area
-	MM_TRAP_NEW_STATE->s_sr.ps_int = 7; 					  // All interrupts disabled for mm trap handler
 	MM_TRAP_NEW_STATE->s_sr.ps_m = 0;	 				      // Set memory management to physical addressing (no process virutalization)
 	MM_TRAP_NEW_STATE->s_sr.ps_s = 1;   					  // Switch to Supervisor Mode
+	MM_TRAP_NEW_STATE->s_sr.ps_int = 7; 					  // All interrupts disabled for mm trap handler
 	MM_TRAP_NEW_STATE->s_sp = MEMSTART;					      // Set the global stack to the top, where the Kernel memory chunk is allocated
 	MM_TRAP_NEW_STATE->s_pc = (int)trapmmhandler;	          // The address for this specific handler
 
 	// Allocate New and Old State Trap Areas for SYS Traps
 	SYS_TRAP_OLD_STATE = (state_t*)0x930;					  // Set pointer to address in Memory -> 76 bytes
 	state_t* SYS_TRAP_NEW_STATE = SYS_TRAP_OLD_STATE + 1;	  // Offset for New State area
-	SYS_TRAP_NEW_STATE->s_sr.ps_int = 7; 				      // All interrupts disabled for mm trap handler
 	SYS_TRAP_NEW_STATE->s_sr.ps_m = 0;	 				      // Set memory management to physical addressing (no process virutalization)
 	SYS_TRAP_NEW_STATE->s_sr.ps_s = 1;   				      // Switch to Supervisor Mode
+	SYS_TRAP_NEW_STATE->s_sr.ps_int = 7; 				      // All interrupts disabled for mm trap handler
 	SYS_TRAP_NEW_STATE->s_sp = MEMSTART;					  // Set the global stack to the top, where the Kernel memory chunk is allocated
 	SYS_TRAP_NEW_STATE->s_pc = (int)trapsyshandler;		      // The address for this specific handler
 }
