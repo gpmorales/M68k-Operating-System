@@ -114,7 +114,7 @@ proc_t* removeProc(proc_link* tp)
 */
 proc_t* outProc(proc_link* tp, proc_t* p)
 {
-    // Handle empty process queue
+    // Handle empty process queue or invalid queue
     if (tp == (proc_link*)ENULL || tp->next == (proc_t*)ENULL) {
         return (proc_t*)ENULL;
     }
@@ -123,28 +123,18 @@ proc_t* outProc(proc_link* tp, proc_t* p)
     proc_t* headProc = headQueue(*tp);
     proc_t* tailProc = tp->next;
 
-    // For single element process queue
-    if (headProc == tailProc) {
-        if (tp->next == p) {
-            return removeProc(tp);
-        } 
-        else {
-            return (proc_t*)ENULL;
-        }
-    }
-
-    // Case where removal of the first element in the queue is required
+    // For single element process queue where the head is our target process
     if (p == headProc) {
-        return removeProc(tp);
+		return removeProc(tp);
     }
 
     // Search queue for given process
     int prev_queue_idx = tp->index;								    // tail index
     int curr_queue_idx = tailProc->p_link[tp->index].index;         // head index
-    proc_t* prevProc;
     proc_t* currProc = headProc;
+    proc_t* prevProc;
 
-    while (currProc != p && currProc != tailProc) {
+    while (currProc != p) {
         // Keep track of prev process
         prevProc = currProc;
         // Update the prev process index
@@ -153,14 +143,15 @@ proc_t* outProc(proc_link* tp, proc_t* p)
         curr_queue_idx = currProc->p_link[curr_queue_idx].index;
         // Recall that tail_queue_idx is the prev procs index
         currProc = currProc->p_link[prev_queue_idx].next;
+
+        // Case where we traverse Q and p is not found
+        if (currProc == headQueue(*tp)) {
+            return (proc_t*)ENULL;
+        }
     }
 
-    // We reached the tail and it is not the target
-    if (currProc == tailProc && p != tailProc) {
-        return (proc_t*)ENULL;
-    }
-    // Update the tail pointer if the target is the tail
-    else if (currProc == tailProc && p == tailProc) {
+    // We reached the tail and it is the target p
+    if (currProc == tailProc && p == tailProc) {
         tp->next = prevProc;  // proc before tail becomes new tail
         tp->index = prev_queue_idx; 
     }
@@ -191,12 +182,6 @@ proc_t* allocProc()
 
     // First element of the procFree list
     proc_t* allocatedProc = procFree_h;
-
-    // Free List only has one element
-    if (allocatedProc->p_link[FREE_LIST].next == (proc_t*)ENULL) {
-        procFree_h = (proc_t*)ENULL;
-        return allocatedProc;
-    }
 
     // Remove the first element of the Free Process List and update pointers
     procFree_h = allocatedProc->p_link[FREE_LIST].next;
@@ -259,14 +244,16 @@ void initProc()
     for (i = 0; i < MAXPROC; i++) 
     {
         // Set the current nodes next to the next process in the table
-		// Remove all processor states
         resetProcess(&procTable[i]);
+
+		// Remove all processor states
 		procTable[i].mm_trap_old_state = (state_t*)ENULL;
 		procTable[i].mm_trap_new_state = (state_t*)ENULL;
 		procTable[i].sys_trap_old_state = (state_t*)ENULL;
 		procTable[i].sys_trap_new_state = (state_t*)ENULL;
 		procTable[i].prog_trap_old_state = (state_t*)ENULL;
 		procTable[i].prog_trap_new_state = (state_t*)ENULL;
+
         if (i != 19) {
 			procTable[i].p_link[FREE_LIST].next = &procTable[i + 1];
         }
@@ -306,8 +293,8 @@ void resetProcess(proc_t* p)
     // Remove any semaphores or proc links associated with this proc_t entry
     int i;
     for (i = 0; i < SEMMAX; i++) {
-        p->p_link[i].next = (proc_t*)ENULL;
         p->p_link[i].index = ENULL;
+        p->p_link[i].next = (proc_t*)ENULL;
         p->semvec[i] = (int*)ENULL;
     }
 

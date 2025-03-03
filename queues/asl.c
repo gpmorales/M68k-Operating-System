@@ -15,10 +15,12 @@ semd_t* semd_h = (semd_t*)ENULL;	        /* Pointer to the head of the ASL */
 void returnSemaphoreToFreeList(semd_t* s);
 void removeSemaphoreFromActiveList(semd_t* s);
 void insertSemaphoreIntoActiveList(semd_t* s);
-int addSemaphoreToProcessVector(int* semAddr, proc_t* p);
+void addSemaphoreToProcessVector(int* semAddr, proc_t* p);
 semd_t* allocateSemaphoreFromFreeList();
 semd_t* getSemaphoreFromActiveList(int* semAddr);
 void resetSemaphore(semd_t* s);
+void removeSemaphoreFromProcessVector(int* semAddr, proc_t* p);
+
 
 /*
     Insert the process table entry pointed to by p at the tail of the process queue associated 
@@ -35,7 +37,7 @@ int insertBlocked(int* semAddr, proc_t* p)
     semd_t* semaphoreDescriptor = getSemaphoreFromActiveList(semAddr);
 
     // A descriptor is not present for this semAddr and there are no free semaphores available to create a new entry in the ASL for this process.
-    if (semdFree_h == (semd_t*)ENULL && semaphoreDescriptor == (semd_t*)ENULL) {
+    if (semaphoreDescriptor == (semd_t*)ENULL && semdFree_h == (semd_t*)ENULL) {
         return TRUE;
     }
     else {
@@ -43,22 +45,20 @@ int insertBlocked(int* semAddr, proc_t* p)
         if (semaphoreDescriptor != (semd_t*)ENULL) {
             // Add the process to the tail of the Semaphore's proc queue and the semaphore to the proc's semaphore vector list
             addSemaphoreToProcessVector(semAddr, p);
-            proc_link* tp = &semaphoreDescriptor->s_link;
-            insertProc(tp, p);
+            insertProc(&semaphoreDescriptor->s_link, p);
             return FALSE;
         }
         // Otherwise there are inactive/free semaphores with no associated process queues that we can add to the ASL:
         else {
             // Allocate a semaphore descriptor from the free list 
             semd_t* newDescriptor = allocateSemaphoreFromFreeList();
+            newDescriptor->s_semAdd = semAddr;
 
             // Add the process to the tail of the Semaphore's proc queue and the semaphore to the proc's semaphore vector list
             addSemaphoreToProcessVector(semAddr, p);
-            proc_link* tp = &newDescriptor->s_link;
-            insertProc(tp, p);
+            insertProc(&newDescriptor->s_link, p);
 
             // Add this semaphore to the ASL
-            newDescriptor->s_semAdd = semAddr;
             insertSemaphoreIntoActiveList(newDescriptor);
             return FALSE;
         }
@@ -87,7 +87,7 @@ proc_t* removeBlocked(int* semAddr)
 
     // Check if the associated process queue is now empty
     if (tp->next == (proc_t*)ENULL) {
-        // Remove the Sem descriptor from the ASL and it the Free List
+        // Remove the Sem descriptor from the ASL and put it on the Free List
         removeSemaphoreFromActiveList(semaphoreDescriptor);
     }
 
@@ -106,7 +106,7 @@ proc_t* outBlocked(proc_t* p)
 {
     // Iterate through Active Semaphores List (ASL) process queues
     semd_t* semaphoreDescriptor = semd_h;
-    int processRemoved = FALSE;
+    int processRemovedAtLeastOnce = FALSE;
 
     while (semaphoreDescriptor != (semd_t*)ENULL) {
         // Attempt to remove the given process from this ASL entry's proc queue
@@ -114,18 +114,18 @@ proc_t* outBlocked(proc_t* p)
         int* semAddr = semaphoreDescriptor->s_semAdd;
 		semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
 
-		int wasRemoved = outProc(tp, p) == (proc_t*)ENULL ? 0 : 1;
+		int wasRemoved = outProc(tp, p) != (proc_t*)ENULL ? 1 : 0;
 
 		// Remove this semaphore from the process's semvac vector
         if (wasRemoved) {
             // We found and removed p from this semaphores's queue
-            *semAddr = *semAddr + 1; // *******
+            *semAddr = *semAddr + 1;
+			processRemovedAtLeastOnce = TRUE;
 
-            // Remove semAddr from p->semvec[]
+            // Remove semAddr from the process's semvec[]
 			removeSemaphoreFromProcessVector(semAddr, p);
-			processRemoved = TRUE;
 
-			// If this Active Semaphore's process queue becomes empty, remove it from the ASL
+			// If this Active Semaphore's process queue becomes empty, remove it from the ASL and put the semd back on the free list
             if (tp->next == (proc_t*)ENULL) {
                 removeSemaphoreFromActiveList(semaphoreDescriptor);
             }
@@ -135,7 +135,7 @@ proc_t* outBlocked(proc_t* p)
     }
 
     // If the process did not appear in any process queue, return ENULL
-    return processRemoved == TRUE ? p : (proc_t*)ENULL;
+    return processRemovedAtLeastOnce == TRUE ? p : (proc_t*)ENULL;
 }
 
 
@@ -147,7 +147,7 @@ proc_t* headBlocked(int* semAddr)
 {
     semd_t* semaphoreDescriptor = getSemaphoreFromActiveList(semAddr);
 
-    // There is no semaphore descriptor associated with this address
+    // There is no semaphore descriptor associated with this address or list is empty
     if (semaphoreDescriptor == (semd_t*)ENULL || semaphoreDescriptor->s_link.next == (proc_t*)ENULL) {
         return (proc_t*)ENULL;
     }
@@ -187,32 +187,7 @@ void initSemd()
 */
 int headASL()
 {
-    return semd_h != (semd_t*)ENULL;
-}
-
-
-/*
-    Return a Semaphore Descriptor to the free list, making it available for future use 
-    to manage blocked processes.
-*/
-void returnSemaphoreToFreeList(semd_t* s)
-{
-    if (s == (semd_t*)ENULL) {
-        return;
-    }
-
-	resetSemaphore(s);
-
-    //  When the free list is empty, let s be the first element
-    if (semdFree_h == (semd_t*)ENULL) {
-        semdFree_h = s;
-        return;
-    }
-
-    // Insert at the head of the free list
-    s->s_next = semdFree_h;
-    semdFree_h->s_prev = s;
-    semdFree_h = s;
+    return (semd_t*)ENULL != (semd_h);
 }
 
 
@@ -263,7 +238,7 @@ void insertSemaphoreIntoActiveList(semd_t* s)
     }
 
     // Otherwise insertion will happen in the middle or at end of the ASL
-    semd_t* prevSemd;
+    semd_t* prevSemd = currSemd;
     while (currSemd != (semd_t*)ENULL && insertSemd->s_semAdd > currSemd->s_semAdd) {
         prevSemd = currSemd;
         currSemd = currSemd->s_next;
@@ -280,7 +255,7 @@ void insertSemaphoreIntoActiveList(semd_t* s)
 
 
 /*
-    Remove the Semaphore Descriptor associated with the given address from the ASL.
+    Remove the Semaphore Descriptor associated with the given address from the ASL and returns it to the Free List.
 */
 void removeSemaphoreFromActiveList(semd_t* s)
 {
@@ -338,25 +313,18 @@ semd_t* getSemaphoreFromActiveList(int* semAddr)
     Add the semaphore specified by semAddr to the vector of active semaphores 
     associated with the given process.
 */
-int addSemaphoreToProcessVector(int* semAddr, proc_t* p)
+void addSemaphoreToProcessVector(int* semAddr, proc_t* p)
 {
     if (p == (proc_t*)ENULL || semAddr == (int*)ENULL) {
-        return FALSE;
+        return;
     }
-
-    // Array of pointers to active semaphores blocking this process
-    int** activeSemaphoreAddresses = p->semvec;
 
     int i;
     for (i = 0; i < SEMMAX; i++) {
-        int* activeSemAddr = activeSemaphoreAddresses[i];
-        if (activeSemAddr == (int*)ENULL) {
-            activeSemaphoreAddresses[i] = semAddr;
-            return TRUE;
+        if (p->semvec[i] == (int*)ENULL) {
+            p->semvec[i] = semAddr;
         }
     }
-
-    return FALSE;
 }
 
 
@@ -364,25 +332,42 @@ int addSemaphoreToProcessVector(int* semAddr, proc_t* p)
     Remove the semaphore specified by semAddr from the vector of active semaphores 
     associated with the given process.
 */
-int removeSemaphoreFromProcessVector(int* semAddr, proc_t* p)
+void removeSemaphoreFromProcessVector(int* semAddr, proc_t* p)
 {
     if (p == (proc_t*)ENULL || semAddr == (int*)ENULL) {
-        return FALSE;
+        return;
     }
-
-    // Array of pointers to active semaphores blocking this process
-    int** activeSemaphoreAddresses = p->semvec;
 
     int i;
     for (i = 0; i < SEMMAX; i++) {
-        int* processActiveSemAddr = activeSemaphoreAddresses[i];
-        if (semAddr == processActiveSemAddr) {
-            activeSemaphoreAddresses[i] = (int*)ENULL;
-            return TRUE;
+        if (p->semvec[i] == semAddr) {
+            p->semvec[i] = (int*)ENULL;
         }
     }
+}
 
-    return FALSE;
+
+/*
+    Return a Semaphore Descriptor to the free list, making it available for future use to manage blocked processes.
+*/
+void returnSemaphoreToFreeList(semd_t* s)
+{
+    if (s == (semd_t*)ENULL) {
+        return;
+    }
+
+	resetSemaphore(s);
+
+    //  When the free list is empty, let s be the first element
+    if (semdFree_h == (semd_t*)ENULL) {
+        semdFree_h = s;
+        return;
+    }
+
+    // Insert at the head of the free list
+    s->s_next = semdFree_h;
+    semdFree_h->s_prev = s;
+    semdFree_h = s;
 }
 
 

@@ -27,13 +27,13 @@
 
 int MEMSTART;
 proc_link readyQueue;
+
 extern int p1();
+extern void updateLastStartTime(proc_t* p);
 
 
 void static init()
 {
-	// Calculate physical memory on system via the stack pointer on boot-up 
-
 	// Initialize the processor state area for p1()
 	state_t globalState;
 
@@ -57,29 +57,15 @@ void static init()
 // After the Kernel routines handle the trap or interrupt, we call schedule to resume the exeuction of the old process if applicable
 void schedule()
 {
-	// Put process in RQ but do not remove it from the queue
-	proc_t* readyProcess;
+	// Prepare to run next process in RQ
+	proc_t* readyProcess = headQueue(readyQueue);
 
-	if ((readyProcess = headQueue(readyQueue)) != (proc_t*)ENULL) {
-		state_t procState = readyProcess->p_s;
-
-		// Get current time / last instant the process was runnning on the CPU
-		long current_time;
-		STCK(&current_time);
-
-		// Update the total amount of time on the CPU if this process WAS prev executed
-		if (readyProcess->last_start_time != 0) {
-			// The Process has been on the CPU (a trap interrupted it) so we grab the current time as the last time it was executed (just switched from proc to OS)
-			long prev_time_block = current_time - readyProcess->last_start_time;
-			readyProcess->total_processor_time += prev_time_block;
-		}
-
-		// About to reload the processor state, so update the last start time | first time executing this process, so the last start time is the current time
-		readyProcess->last_start_time = current_time;
-
+	if (readyProcess != (proc_t*)ENULL) {
+		state_t state = readyProcess->p_s;
 		// Load this process's state into the CPU
 		intschedule();
-		LDST(&procState);
+		updateLastStartTime(readyProcess);
+		LDST(&state);
 	} 
 	else {
 		// CPU is starved -> trigger a trap with no handler and halt the CPU
