@@ -59,6 +59,7 @@ void schedule()
 {
 	// Prepare to run next process in RQ
 	proc_t* readyProcess;
+
 	if ((readyProcess = headQueue(readyQueue)) != (proc_t*)ENULL) {
 		state_t state = readyProcess->p_s;
 		// Load this process's state into the CPU

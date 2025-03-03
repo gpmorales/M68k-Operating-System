@@ -24,11 +24,14 @@
 extern proc_link readyQueue;
 extern void schedule();
 void killprocrecurse(proc_t* p);
-void killproc(proc_t* p);
+void killproc();
 
 
-void createproc(state_t* old_state)
+void createproc()
 {
+	// Get the interrupted processor state via SYS_OLD_STATE_AREA
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+
 	// Grab the interrupted process from the RQ, serving as the parent process
 	proc_t* parentProcess = headQueue(readyQueue);
 
@@ -38,14 +41,14 @@ void createproc(state_t* old_state)
 	// Cannot create new process due to lack of resources or another reason
 	if (childProcess == (proc_t*)ENULL) {
 		// Return -1 in s_r D2
-		old_state->s_r[2] = -1;
+		SYS_TRAP_OLD_STATE->s_r[2] = -1;
 	}
 	else {
 		// Child process can be created
-		old_state->s_r[2] = 0;
+		SYS_TRAP_OLD_STATE->s_r[2] = 0;
 
 		// Set the child's processor state
-		state_t* childProcState = (state_t*)old_state->s_r[4];
+		state_t* childProcState = (state_t*)SYS_TRAP_OLD_STATE->s_r[4];
 		childProcess->p_s = *childProcState;
 
 		// Update the parent process
@@ -89,6 +92,7 @@ void killprocrecurse(proc_t* process)
 	if (outBlocked(process) == (proc_t*)ENULL) {
 		outProc(&readyQueue, process);
 	}
+
 	freeProc(process);
 }
 
@@ -98,8 +102,11 @@ void killprocrecurse(proc_t* process)
 	Remove it from all semaphore queues (OutBlocked) and the RQ.
 	You will need a recursive function to descend the process tree, deleting each descendant and updating the tree.
 */
-void killproc(proc_t* process) 
+void killproc() 
 {
+	// Grab the interrupted process from the RQ, serving as the parent process
+	proc_t* process = headQueue(readyQueue);
+
 	// Set the parent child pointer to the killed process's immeadiate sibling
 	proc_t* parentProcess = process->parent_proc;
 
@@ -140,13 +147,16 @@ void killproc(proc_t* process)
 	  RQ if its not on additional semaphore Q’
 	– Returns to the process now at the head of the RQ.
 */
-void semop(state_t* old_state)
+void semop()
 {
+	// Get the interrupted processor state via SYS_OLD_STATE_AREA
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+
 	int callingProcessBlocked = FALSE;
 
 	// The interrupted process's state is saved in old_state (SYS)
-	int len = old_state->s_r[3];
-	vpop* semOperations = (vpop*)old_state->s_r[4];
+	int len = SYS_TRAP_OLD_STATE->s_r[3];
+	vpop* semOperations = (vpop*)SYS_TRAP_OLD_STATE->s_r[4];
 
 	// Iterate thorugh each entry and peform action on semaphore with given address based on the operation type
 	int i;
@@ -164,7 +174,7 @@ void semop(state_t* old_state)
 				// we do not want this to prevent other processes from being unblocked, so use a flag
 				callingProcessBlocked = TRUE;
 				proc_t* callingProcess = headQueue(readyQueue);
-				callingProcess->p_s = *old_state;
+				callingProcess->p_s = *SYS_TRAP_OLD_STATE;
 				insertBlocked(semAddr, callingProcess);
 			}
 			else {
@@ -221,48 +231,49 @@ void notused() {
 	The nucleus, on execution of this instruction, should save the contents of D3 and D4
 	(in the process table entry) to pass up the appropriate trap when (and if) it occurs while running this process.
 */
-void trapstate(state_t* old_state)
+void trapstate()
 {
 	// The interrupted process's state is saved in old_state (SYS)
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
 	// Grab the interrupted process so we populate the corresponding old processor state area with whats in 0x930
 	proc_t* process = headQueue(readyQueue);
 
 	// Hardware will have loaded the appropiate info in SYS_OLD_STATE_AREA
-	int trapType = old_state->s_r[2];
-	state_t* old_state_area = (state_t*)old_state->s_r[3];	  // address to the old state area we will populate later with the old processor state
-	state_t* new_state_area = (state_t*)old_state->s_r[4];   // address to the specific handler processor state for this trap, already populated!
+	int trapType = SYS_TRAP_OLD_STATE->s_r[2];
+	state_t* old_state_area = (state_t*)SYS_TRAP_OLD_STATE->s_r[3];	  // address to the old state area we will populate later with the old processor state
+	state_t* new_state_area = (state_t*)SYS_TRAP_OLD_STATE->s_r[4];   // address to the specific handler processor state for this trap, already populated!
 
 	// Make sure the corresponding pointers in proc_t have NOT been popoulated (SYS5 wasnt invoked)
 
 	if (trapType == PROGTRAP) {
 		// We can only specify the trap state vector once per trap type
-		if (process->prog_trap_old_state == (state_t*)ENULL) {
+		if (process->prog_trap_old_state == (state_t*)ENULL && process->prog_trap_new_state == (state_t*)ENULL) {
 			process->prog_trap_old_state = old_state_area;
 			process->prog_trap_new_state = new_state_area;
 		}
 		else {
-			killproc(process);
+			killproc();
 		}
 	}
 	else if (trapType == MMTRAP) {
 		// We can only specify the trap state vector once per trap type
-		if (process->mm_trap_old_state == (state_t*)ENULL) {
+		if (process->mm_trap_old_state == (state_t*)ENULL && process->mm_trap_new_state == (state_t*)ENULL) {
 			process->mm_trap_old_state = old_state_area;
 			process->mm_trap_new_state = new_state_area;
 		} 
 		else {
-			killproc(process);
+			killproc();
 		}
 	}
 	else if (trapType == SYSTRAP) {
 		// We can only specify the trap state vector once per trap type
-		if (process->sys_trap_old_state == (state_t*)ENULL) {
+		if (process->sys_trap_old_state == (state_t*)ENULL && process->sys_trap_new_state == (state_t*)ENULL) {
 			process->sys_trap_old_state = old_state_area;
 			process->sys_trap_new_state = new_state_area;
 		} 
 		else {
-			killproc(process);
+			killproc();
 		}
 	}
 }
@@ -273,14 +284,43 @@ void trapstate(state_t* old_state)
 	the process executing the instruction to be placed in D2. This means that the
 	nucleus must record (in the process table entry) the amount of processor time used by each process.
 */
-void getcputime(state_t* old_state)
+void getcputime()
 {
 	// The interrupted process's state is saved in old_state (SYS)
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
 	// Grab the interrupted process
 	proc_t* process = headQueue(readyQueue);
 
 	// Get the time spent on the CPU from the process
-	old_state->s_r[2] = process->total_processor_time;
+	SYS_TRAP_OLD_STATE->s_r[2] = process->total_processor_time;
 }
 
+
+/*
+	Handles all other SYS traps.
+*/
+void trapsysdefault()
+{
+	// The interrupted process's state is saved in old_state (SYS)
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+
+	// Grab the interrupted process from the RQ
+	proc_t* process = headQueue(readyQueue);
+
+	// The interrupted process's state is saved in SYS_TRAP_OLD_STATE
+	if (process->sys_trap_old_state != (state_t*)ENULL && process->sys_trap_new_state != (state_t*)ENULL) {
+		// Update process start time as we load it unto the CPU
+		updateLastStartTime(process);
+
+		// Copy the interrupted process state (stored in 0x930) into the process's SYS Trap Old State Area
+		*process->sys_trap_old_state = *SYS_TRAP_OLD_STATE;
+
+		// Load the Handler State routine specifics stored in this process's SYS New State struct ptr (address set in SYS5) onto the CPU
+		LDST(process->sys_trap_new_state);
+	}
+	else {
+		// No handler address in the PTE for this trap, kill the process at the head of RQ
+		killproc(process);
+	}
+}
