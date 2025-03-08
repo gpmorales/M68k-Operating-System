@@ -323,6 +323,7 @@ void addSemaphoreToProcessVector(int* semAddr, proc_t* p)
     for (i = 0; i < SEMMAX; i++) {
         if (p->semvec[i] == (int*)ENULL) {
             p->semvec[i] = semAddr;
+            return;
         }
     }
 }
@@ -342,6 +343,7 @@ void removeSemaphoreFromProcessVector(int* semAddr, proc_t* p)
     for (i = 0; i < SEMMAX; i++) {
         if (p->semvec[i] == semAddr) {
             p->semvec[i] = (int*)ENULL;
+            return;
         }
     }
 }
