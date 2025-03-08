@@ -67,6 +67,7 @@
 #define	FLOPPY1		12
 #define	FLOPPY2		13
 #define	FLOPPY3		14
+// CLOCK is 15?
 
 #define TERMINAL 0
 #define PRINTER  1

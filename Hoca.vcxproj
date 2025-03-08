@@ -166,6 +166,7 @@
     <ClCompile Include="notes\OperatingSystems101.h" />
     <ClCompile Include="notes\Processes.h" />
     <ClCompile Include="nucleus\interrupts\int.c" />
+    <ClCompile Include="nucleus\interrupts\intp1.c" />
     <ClCompile Include="nucleus\traps\main.c" />
     <ClCompile Include="nucleus\traps\p1.2.c" />
     <ClCompile Include="nucleus\traps\p1.c" />
@@ -179,6 +180,7 @@
   <ItemGroup>
     <None Include="h\asl.e" />
     <None Include="h\procq.e" />
+    <None Include="nucleus\interrupts\Makefile" />
     <None Include="nucleus\traps\Makefile" />
     <None Include="queues\Makefile" />
     <None Include="queues\p1test3.c" />

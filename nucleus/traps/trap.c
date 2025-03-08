@@ -59,10 +59,7 @@ void updateLastStartTime(proc_t* p);
 void static trapsyshandler() 
 {
 	// *** Recall that on trap/interrupts, the Hardware saves the CPUs processor state in the Global Trap Areas ***
-	// We remove the process from the CPU, if it was running prev, we save the time slice
-	// process --> kernel routine
 	proc_t* process = headQueue(readyQueue);
-
 	updateTotalTimeOnProcessor(process);
 
 	// Case where that the invoking process is NOT in supervisor mode and is a SYS call we handle

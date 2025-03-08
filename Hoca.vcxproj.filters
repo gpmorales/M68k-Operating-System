@@ -94,6 +94,9 @@
     <ClCompile Include="nucleus\traps\p1.2.c">
       <Filter>nucleus\traps</Filter>
     </ClCompile>
+    <ClCompile Include="nucleus\interrupts\intp1.c">
+      <Filter>nucleus\interrupts</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e">
@@ -116,6 +119,9 @@
     </None>
     <None Include="nucleus\traps\Makefile">
       <Filter>nucleus\traps</Filter>
+    </None>
+    <None Include="nucleus\interrupts\Makefile">
+      <Filter>nucleus\interrupts</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

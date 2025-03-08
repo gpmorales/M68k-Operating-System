@@ -248,6 +248,7 @@ void insertSemaphoreIntoActiveList(semd_t* s)
     prevSemd->s_next = insertSemd;
     insertSemd->s_prev = prevSemd;
     insertSemd->s_next = currSemd;
+
     if (currSemd != (semd_t*)ENULL) {
         currSemd->s_prev = insertSemd;
     }
