@@ -292,6 +292,9 @@ void getcputime()
 	// Grab the interrupted process
 	proc_t* process = headQueue(readyQueue);
 
+	// TODO ASK
+	// process->p_s = SYS_TRAP_OLD_STATE; TODO NECESSARY OR NOT SINCE THIS PROCE STATE WILL BE REALOADED ANYAWY??????
+
 	// Get the time spent on the CPU from the process
 	SYS_TRAP_OLD_STATE->s_r[2] = process->total_processor_time;
 }
@@ -310,7 +313,7 @@ void trapsysdefault()
 
 	// The interrupted process's state is saved in SYS_TRAP_OLD_STATE
 	if (process->sys_trap_old_state != (state_t*)ENULL && process->sys_trap_new_state != (state_t*)ENULL) {
-		// Update process start time as we load it unto the CPU
+		// Update process start time as we load sys trap handler on CPU
 		updateLastStartTime(process);
 
 		// Copy the interrupted process state (stored in 0x930) into the process's SYS Trap Old State Area

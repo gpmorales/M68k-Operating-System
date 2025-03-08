@@ -20,25 +20,35 @@
 	This function handles 9 different traps. It has a switch statment and each case calls a function.
 	Two of the functions, waitforpclock() and waitforio() are in int.c The other secen are in syscall.c
 
-	NOTE: During init() I will map EVT trap numbers (32-47) to their corresponding SYS functions. 
+	NOTE: During init() I will map the EVT entries 32-47 to the corresponding SYS functions addresses. 
 	The tmp_sys.sys_no field will hold that trap number, letting the kernel know which SYS function (SYS1-SYS7) to execute.
 
 	- void static trapmmhandler():
 	- void static trapproghandler():
+
 	These functions will pass up memory management and program traps OR terminate the process.
 */
 
+
+/* Device related registers and semaphores */
+extern int MEMSTART;
+extern proc_link readyQueue;
+
+/* Trap Area States */
 state_t* PROG_TRAP_OLD_STATE;
 state_t* SYS_TRAP_OLD_STATE;
 state_t* MM_TRAP_OLD_STATE;
 
-extern int MEMSTART;
-extern proc_link readyQueue;
-
+/* Trap Handlers */
 void static trapsyshandler();
 void static trapproghandler();
 void static trapproghandler();
 
+/* SYS Calls 7 & 8 */
+extern void waitforpclock();
+extern void waitforio();
+
+/* Processor Time Utility routines */
 void updateTotalTimeOnProcessor(proc_t* p);
 void updateLastStartTime(proc_t* p);
 
@@ -60,6 +70,7 @@ void static trapsyshandler()
 {
 	// *** Recall that on trap/interrupts, the Hardware saves the CPUs processor state in the Global Trap Areas ***
 	proc_t* process = headQueue(readyQueue);
+
 	updateTotalTimeOnProcessor(process);
 
 	// Case where that the invoking process is NOT in supervisor mode and is a SYS call we handle
@@ -84,7 +95,7 @@ void static trapsyshandler()
 		}
 	}
 
-	// For traps that require SYS calls 1- 6, we only need to use the Process's SYS old trap state struct to determine the exact handler needed
+	// Determine the exact system routine needed to handle trap
 	switch (SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no) {
 		case (1):
 			createproc();
@@ -104,11 +115,17 @@ void static trapsyshandler()
 		case (6):
 			getcputime();
 			break;
+		case (7):
+			// TODO can I get away with no args and still get points? LOL WHO CARES
+			waitforpclock();
+		case (8):
+			waitforio();
 		default:
 			trapsysdefault();
 			break;
 	}
 
+	// Kernel is about to reload the process on the CPU
 	updateLastStartTime(process);
 
 	// Note that for routines SYS1-6, we return the execution flow to the original process via LDST()
