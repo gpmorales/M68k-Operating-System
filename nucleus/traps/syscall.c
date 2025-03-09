@@ -193,7 +193,7 @@ void semop()
 				}
 			}
 			else {
-				// Do nothing if the semaphore was not active, as resources are already free
+				// Do nothing if the semaphore was not active, as resources were already free
 			}
 		}
 	}

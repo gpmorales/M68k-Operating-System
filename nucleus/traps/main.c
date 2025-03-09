@@ -50,7 +50,7 @@ void static init()
 	initProc(); // Initialize Process Free List
 	initSemd(); // Initialize In-active Semaphore List
 	trapinit(); // Initialize EVT + Prog, MM, and SYS Trap Areas
-	intinit();  // Phase 2
+	intinit();  // Initialize Interrupt Areas and Device registers
 }
 
 
@@ -87,8 +87,8 @@ void main()
 
 	// Update the stack pointer and move it down from the Kernel chunk memory to prevent overriding Kernel routines
 	initialProcState.s_sp = MEMSTART - PAGESIZE*2; 
-	initialProcState.s_sr.ps_m = 0;					// Set memory management to physical addressing (no process virutalization)
-	initialProcState.s_sr.ps_s = 1;					// Switch to Supervisor Mode to run initial process
+	initialProcState.s_sr.ps_m = 0;						// Set memory management to physical addressing (no process virutalization)
+	initialProcState.s_sr.ps_s = 1;						// Switch to Supervisor Mode to run initial process
 	initialProcState.s_sr.ps_int = 7;					// All interrupts disabled for initial process p1
 	initialProcState.s_pc = (int)p1;					// Set the Program Counter to p1's address
 	initialProcess->p_s = initialProcState;				// Update proc_t with the the current processor state
