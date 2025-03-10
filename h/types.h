@@ -40,7 +40,7 @@ typedef struct sr_t {
              ps_c	:1;		/* carry */
 } sr_t;
 
-/* 2 byte temporary storeage that holds the system #, program trap #, type of mm trap and device type */
+/* 2 byte temporary storage that holds the system #, program trap #, type of mm trap and device type */
 /* these 2 bytes are included in the processor state for convenience. */
 typedef union tmp_t {
     struct tmp_int {
@@ -75,13 +75,13 @@ typedef struct {
 
 /* Device registers */
 typedef	struct {
-    unsigned d_op,		/* operation register */
+    unsigned d_op,		/* Operation register */
          d_dadd;	/* address, amount, track or sector number */
 #define	d_amnt	d_dadd		/* synonyms for the above */
 #define	d_track	d_dadd
 #define	d_sect	d_dadd
     char	 *d_badd;	/* buffer address register */
-    unsigned d_stat;	/* status register */
+    unsigned d_stat;	/* Status register */
 } devreg_t;
 
 

@@ -116,7 +116,6 @@ void static trapsyshandler()
 			getcputime();
 			break;
 		case (7):
-			// TODO can I get away with no args and still get points? LOL WHO CARES
 			waitforpclock();
 		case (8):
 			waitforio();

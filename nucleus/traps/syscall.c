@@ -1,4 +1,8 @@
-﻿#include "../../h/types.h"
+﻿/*
+    This code is my own work, it was written without consulting code written by other students current or previous or using any AI tools
+    George Morales
+*/
+#include "../../h/types.h"
 #include "../../h/const.h"
 #include "../../h/procq.e"
 #include "../../h/asl.e"
@@ -23,6 +27,8 @@
 
 extern proc_link readyQueue;
 extern void schedule();
+extern void updateLastStartTime();
+
 void killprocrecurse(proc_t* p);
 void killproc();
 
@@ -132,7 +138,7 @@ void killproc()
 	removeProc(&readyQueue);
 	killprocrecurse(process);
 
-	// Call schedule to exit this kernel routine and switch the execution flow back to the interrupted process OR the next proc on the RQ
+	// Call schedule to exit this kernel routine and load the next proc on the RQ
 	schedule();
 }
 
