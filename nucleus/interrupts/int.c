@@ -103,6 +103,28 @@ void static intclockhandler();
 
 
 /*
+    This function is called when the RQ is empty. This function could enable interrupts and enter
+    an infinite loop, or it could execute the "stop" assembly instruction. From C call the asm("stop #0x2000") instruction
+    which loads 0x2000 into the status register, i.e. it enables interrupts and sets supervisor mode, and then
+	the CPU halts until an interrupt occurs. The simulator runs much faster if stop is used.
+*/
+void static sleep()
+{
+    asm("stop #0x2000");
+}
+
+
+/*
+	This functions simply loads the timeslice into the Interval Timer.
+    Note that when we load the timeslice, the interrupt is only fired once after the time interval passes.
+*/
+void intschedule()
+{
+    LDIT(&TIME_SLICE_INTERVAL);
+}
+
+
+/*
 	This function is similar to the semop call in the first part. It has two arguments,
     the address of a semaphore (instead of a state_t), and the operation. 
     This function should use the ASL and should call insertBlocked and removeBlocked
@@ -193,7 +215,7 @@ void waitforio()
     if (deviceSemaphores[deviceNumber] <= 0) {
 		// Update the process's current processor state as it will be blocked and its state will need to be loaded later
 		process->p_s = *SYS_TRAP_OLD_STATE;
-        intsemop(deviceSemaphores[deviceNumber], LOCK);
+        intsemop(&deviceSemaphores[deviceNumber], LOCK);
     }
     // Otherwise the device semaphores value is 1, meaning the interrupt occured
     else {
@@ -232,7 +254,7 @@ void static inthandler(int deviceNumber, int deviceType)
 	// The wait_for_io call was made previously by if the device's semaphore is -1, as only calling the wait_for_io could have blocked, hence this interrupt was eventually expected
     if (deviceSemaphores[deviceNumber] == -1) {
         // Unblock the waiting process by performing a V (+1) operation
-        intsemop(deviceSemaphores[deviceNumber], UNLOCK);
+        intsemop(&deviceSemaphores[deviceNumber], UNLOCK);
     }
     // Otherwise the interrupt occurs before the process has a chance to invoke wait_for_io, such as when a device finishes its operation very quickly
     else {
@@ -252,7 +274,6 @@ void intdeadlock()
 {
     // One or more processes are blocked on the pseudo semaphore clock
     if (headBlocked(&PSEUDO_CLOCK_SEMAPHORE) != (proc_t*)ENULL) {
-
         // Call intschedule to prepare a timer interrupt to invoke intclockhandler to load the next process on the RQ
         intschedule();
 
@@ -326,9 +347,14 @@ void static intterminalhandler()
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
     inthandler(deviceNumber, TERMINAL);
 
-    // Now we do what?
-    // Since the process that requested the I/O may not be the interrupted process on CPU
-    // check if the RQ has any processes left on it.
+    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
+    if (headQueue(readyQueue) == (proc_t*)ENULL) {
+        intdeadlock();
+    }
+    else {
+        // Otherwise we resume the process on the CPU
+        LDST(TERM_INTERRUPT_OLD_STATE);
+    }
 }
 
 
@@ -340,6 +366,15 @@ void static intprinterhandler()
 
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
     inthandler(deviceNumber, PRINTER);
+
+    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
+    if (headQueue(readyQueue) == (proc_t*)ENULL) {
+        intdeadlock();
+    }
+    else {
+        // Otherwise we resume the process on the CPU
+        LDST(PRINTER_INTERRUPT_OLD_STATE);
+    }
 }
 
 
@@ -351,6 +386,15 @@ void static intdiskhandler()
 
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
     inthandler(deviceNumber, DISK);
+
+    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
+    if (headQueue(readyQueue) == (proc_t*)ENULL) {
+        intdeadlock();
+    }
+    else {
+        // Otherwise we resume the process on the CPU
+        LDST(DISK_INTERRUPT_OLD_STATE);
+    }
 }
 
 
@@ -362,28 +406,15 @@ void static intfloppyhandler()
 
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
     inthandler(deviceNumber, FLOPPY);
-}
 
-
-/*
-    This function is called when the RQ is empty. This function could enable interrupts and enter
-    an infinite loop, or it could execute the "stop" assembly instruction. From C call the asm("stop #0x2000") instruction
-    which loads 0x2000 into the status register, i.e. it enables interrupts and sets supervisor mode, and then
-	the CPU halts until an interrupt occurs. The simulator runs much faster if stop is used.
-*/
-void static sleep()
-{
-    asm("stop #0x2000");
-}
-
-
-/*
-	This functions simply loads the timeslice into the Interval Timer.
-    Note that when we load the timeslice, the interrupt is only fired once after the time interval passes.
-*/
-void intschedule()
-{
-    LDIT(&TIME_SLICE_INTERVAL);
+    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
+    if (headQueue(readyQueue) == (proc_t*)ENULL) {
+        intdeadlock();
+    }
+    else {
+        // Otherwise we resume the process on the CPU
+        LDST(FLOPPY_INTERRUPT_OLD_STATE);
+    }
 }
 
 
@@ -407,8 +438,6 @@ void intinit()
 		// Each devreg_t is 16 bytes long (0x10 apart)
 		deviceRegisters[i] = (devreg_t*)BEGINDEVREG + i;
 		deviceSemaphores[i] = 0;
-		deviceCompletionStats[i]->length = -1;
-		deviceCompletionStats[i]->status = -1;
     }
 
 	// Allocate New and Old State Areas for Device Interrupts

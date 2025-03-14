@@ -27,8 +27,6 @@
 
 extern proc_link readyQueue;
 extern void schedule();
-extern void updateLastStartTime();
-
 void killprocrecurse(proc_t* p);
 void killproc();
 
