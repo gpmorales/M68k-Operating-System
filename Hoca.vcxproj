@@ -179,6 +179,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e" />
+    <None Include="h\int.e" />
     <None Include="h\procq.e" />
     <None Include="nucleus\interrupts\Makefile" />
     <None Include="nucleus\traps\Makefile" />

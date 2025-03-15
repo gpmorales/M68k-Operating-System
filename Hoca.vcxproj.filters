@@ -123,6 +123,9 @@
     <None Include="nucleus\interrupts\Makefile">
       <Filter>nucleus\interrupts</Filter>
     </None>
+    <None Include="h\int.e">
+      <Filter>h</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="notes\Scheduling.h">

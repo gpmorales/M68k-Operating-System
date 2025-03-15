@@ -65,7 +65,7 @@ typedef struct {
 
 /* Device related registers and semaphores */
 int deviceSemaphores[TOTAL_DEVICES];
-completion_stat* deviceCompletionStats[TOTAL_DEVICES];
+completion_stat deviceCompletionStats[TOTAL_DEVICES];
 devreg_t* deviceRegisters[TOTAL_DEVICES];
 
 /* Global Variables */
@@ -87,12 +87,6 @@ state_t* CLOCK_INTERRUPT_OLD_STATE;
 /* SYS Calls 7 & 8 */
 void waitforpclock();
 void waitforio();
-
-/* CPU starvation handler */
-void intdeadlock();
-
-/* CPU multiplexing handler */
-void intschedule();
 
 /* Interrupt Handlers */
 void static intterminalhandler();
@@ -142,15 +136,18 @@ void static intsemop(int* semAddr, int op)
 	int prevSemVal = *semAddr;
 	*semAddr = prevSemVal + op;	    
 
-    // Note that wait_for_io and wait_for_plock are blocking the process at the head of the RQ
+    // Note that wait_for_io and wait_for_plock are blocking the interrupted process at the head of the RQ
 	if (op == LOCK) {
         // Ensure the semaphore has no more free resources before blocking the process
         if (prevSemVal <= 0) {
-			// Grab the running process
-			proc_t* process = headQueue(readyQueue);
+			// Remove the interrupted process from the RQ
+			proc_t* process = removeProc(&readyQueue);
 
 			// Semaphore has become negative, meaning it should block the process that invoked the wait_for_io or wait_for_plock routines
 			insertBlocked(semAddr, process);
+
+            // This process is no longer running, switch execution flow
+            schedule();
         }
 	}
     // Note that inthandler and intclockhandler are unblocking process that requested I/O operations OR sleeping processes
@@ -209,7 +206,7 @@ void waitforio()
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
     // Check if interrupt has already occured which happens on a V (+1) operation 
-    unsigned deviceNumber = SYS_TRAP_OLD_STATE->s_r[4];
+    int deviceNumber = SYS_TRAP_OLD_STATE->s_r[4];
 
     // In the case where the device interrupt has NOT occured, BLOCK on that device's semaphore until we recieve the interrupt (V op)
     if (deviceSemaphores[deviceNumber] <= 0) {
@@ -219,8 +216,8 @@ void waitforio()
     }
     // Otherwise the device semaphores value is 1, meaning the interrupt occured
     else {
-        SYS_TRAP_OLD_STATE->s_r[2] = deviceCompletionStats[deviceNumber]->length;
-        SYS_TRAP_OLD_STATE->s_r[3] = deviceCompletionStats[deviceNumber]->status;
+        SYS_TRAP_OLD_STATE->s_r[2] = deviceCompletionStats[deviceNumber].length;
+        SYS_TRAP_OLD_STATE->s_r[3] = deviceCompletionStats[deviceNumber].status;
 
         // Decrement (P) that devices semaphore as the device operation has already been completed, resuming this process's execution via LDST in trap.c
         deviceSemaphores[deviceNumber]--; 
@@ -240,27 +237,40 @@ void static inthandler(int deviceNumber, int deviceType)
 	// Since the process that initiated the I/O might be blocked and not currently running, we need to save
 	// the device's completion status (operation status and length for printer/terminal devices) separately
 	// The saved completion status will be accessed later when the original process that requested the I/O resumes
+    int offset = 0;
+    if (deviceType == PRINTER)
+        offset = 5;
+    if (deviceType == DISK)
+        offset = 7;
+    if (deviceType == FLOPPY)
+        offset = 11;
 
-	// We want to keep track of the device's most current completion status by grabbing the corresponding Device Registers
-	devreg_t* deviceRegister = (devreg_t*)BEGINDEVREG + deviceNumber;
-
-	// Update this devices completion status via the Status and Length register
-	deviceCompletionStats[deviceNumber]->status = deviceRegister->d_stat;
-
-	if (deviceType == PRINTER || deviceType == TERMINAL) {
-		deviceCompletionStats[deviceNumber]->length = deviceRegister->d_amnt;
-	}
+    int deviceIndex = deviceNumber + offset;
 
 	// The wait_for_io call was made previously by if the device's semaphore is -1, as only calling the wait_for_io could have blocked, hence this interrupt was eventually expected
-    if (deviceSemaphores[deviceNumber] == -1) {
+    if (deviceSemaphores[deviceIndex] == -1) {
         // Unblock the waiting process by performing a V (+1) operation
-        intsemop(&deviceSemaphores[deviceNumber], UNLOCK);
+        intsemop(&deviceSemaphores[deviceIndex], UNLOCK);
+
+        // Return status and length if applicable
+        proc_t* process = headBlocked(&deviceSemaphores[deviceIndex]);
+
+		process->p_s.s_r[3] = deviceRegisters[deviceIndex]->d_stat;
+		if (deviceType == PRINTER || deviceType == TERMINAL) {
+			process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd;
+		}
     }
     // Otherwise the interrupt occurs before the process has a chance to invoke wait_for_io, such as when a device finishes its operation very quickly
     else {
         // In this case, we increment the semaphore value to indicate the interrupt already occured ***
         // The process in this case does not need to be blocked and can just get the completion status and continue
-        deviceSemaphores[deviceNumber]++;
+        deviceSemaphores[deviceIndex]++;
+
+		// Update this devices completion status via the Status and Length register
+		deviceCompletionStats[deviceIndex].status = deviceRegisters[deviceIndex]->d_stat;
+		if (deviceType == PRINTER || deviceType == TERMINAL) {
+			deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
+		}
     }
 }
 
@@ -285,7 +295,7 @@ void intdeadlock()
     int i;
     for (i = 0; i < TOTAL_DEVICES; i++) {
         // if any process is blocked on an I/O semaphore, sleep so the CPU can conserve resources
-        if (headBlocked(&deviceSemaphores[i]) != (proc_t*)ENULL || deviceSemaphores[i] < 0) {
+        if (headBlocked(&deviceSemaphores[i]) != (proc_t*)ENULL) {
             sleep();
             break; // TODO ? does sleep return to this point of execution
         }
@@ -294,11 +304,11 @@ void intdeadlock()
     // If we reach this point, this means there are no process blocked on I/O semaphores OR on the pseudo-clock semaphore
     // Check if there are any other process blocked by any other normal Semaphores (ASL list is empty meaning the CPU has executed all processes)
     if (!headASL()) {
-		printresult("Normal termination of CPU");
+		//printresult("Normal termination of CPU");
 		HALT();
     }
     else {
-		printresult("Deadlock occurred"); // TODO fix wording ???
+		//printresult("Deadlock occurred"); // TODO fix wording ???
 		HALT();
     }
 }
@@ -311,18 +321,19 @@ void intdeadlock()
 void static intclockhandler()
 {
     // Grab the process currently runningo on the CPU
-    proc_t* runningProcess = headQueue(readyQueue);
+    proc_t* process = headQueue(readyQueue);
 
     // Grab the interrupted process's state and registers
 	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
     // Update the running process's state before we load next process on CPU
-    runningProcess->p_s = *SYS_TRAP_OLD_STATE;
+    process->p_s = *SYS_TRAP_OLD_STATE;
 
     // Perform Round robin, remove process at head and add to tail of RQ
-    if (runningProcess != (proc_t*)ENULL) {
+    if (process != (proc_t*)ENULL) {
         removeProc(&readyQueue);
-        insertProc(&readyQueue, runningProcess);
+        //updateTotalTimeOnProcessor(process);
+        insertProc(&readyQueue, process);
 
 		// TODO Check how long the processes blocked by the Semaphore Pseudoclock have been blocked and 'wake them up' by re-adding them to RQ
 

@@ -6,6 +6,7 @@
 #include "../../h/const.h"
 #include "../../h/procq.e"
 #include "../../h/asl.e"
+#include "../../h/int.e"
 
 /*
 	This module coordinates the initialization of the nucleus and it starts
@@ -29,6 +30,7 @@ int MEMSTART;
 proc_link readyQueue;
 
 extern int p1();
+extern void trapinit();
 extern void updateLastStartTime(proc_t* p);
 
 

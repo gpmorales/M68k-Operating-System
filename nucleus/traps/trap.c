@@ -6,6 +6,7 @@
 #include "../../h/const.h"				
 #include "../../h/util.h"
 #include "../../h/procq.e"				
+#include "../../h/int.e"				
 
 /*
     This module handles the traps, it has the following static functions:
@@ -43,10 +44,6 @@ state_t* MM_TRAP_OLD_STATE;
 void static trapsyshandler();
 void static trapproghandler();
 void static trapproghandler();
-
-/* SYS Calls 7 & 8 */
-extern void waitforpclock();
-extern void waitforio();
 
 /* Processor Time Utility routines */
 void updateTotalTimeOnProcessor(proc_t* p);
