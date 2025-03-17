@@ -100,7 +100,7 @@ void static intclockhandler();
     This function is called when the RQ is empty. This function could enable interrupts and enter
     an infinite loop, or it could execute the "stop" assembly instruction. From C call the asm("stop #0x2000") instruction
     which loads 0x2000 into the status register, i.e. it enables interrupts and sets supervisor mode, and then
-	the CPU halts until an interrupt occurs. The simulator runs much faster if stop is used.
+    the CPU halts until an interrupt occurs. The simulator runs much faster if stop is used.
 */
 void static sleep()
 {
@@ -109,7 +109,7 @@ void static sleep()
 
 
 /*
-	This functions simply loads the timeslice into the Interval Timer.
+    This functions simply loads the timeslice into the Interval Timer.
     Note that when we load the timeslice, the interrupt is only fired once after the time interval passes.
 */
 void intschedule()
@@ -119,7 +119,7 @@ void intschedule()
 
 
 /*
-	This function is similar to the semop call in the first part. It has two arguments,
+    This function is similar to the semop call in the first part. It has two arguments,
     the address of a semaphore (instead of a state_t), and the operation. 
     This function should use the ASL and should call insertBlocked and removeBlocked
     Note that in our implementation, a device can ONLY block 1 process at any given moment
@@ -132,41 +132,41 @@ void static intsemop(int* semAddr, int op)
     // - inthandler (to UNBLOCK the process that requested the I/O operation)
     // - intclockhandler (to UNBLOCK the processes on the pseudo-clock)
 
-	// Get the semaphore proper and update the semaphore
-	int prevSemVal = *semAddr;
-	*semAddr = prevSemVal + op;	    
+    // Get the semaphore proper and update the semaphore
+    int prevSemVal = *semAddr;
+    *semAddr = prevSemVal + op;	    
 
     // Note that wait_for_io and wait_for_plock are blocking the interrupted process at the head of the RQ
-	if (op == LOCK) {
+    if (op == LOCK) {
         // Ensure the semaphore has no more free resources before blocking the process
         if (prevSemVal <= 0) {
-			// Remove the interrupted process from the RQ
-			proc_t* process = removeProc(&readyQueue);
+            // Remove the interrupted process from the RQ
+            proc_t* process = removeProc(&readyQueue);
 
-			// Semaphore has become negative, meaning it should block the process that invoked the wait_for_io or wait_for_plock routines
-			insertBlocked(semAddr, process);
+            // Semaphore has become negative, meaning it should block the process that invoked the wait_for_io or wait_for_plock routines
+            insertBlocked(semAddr, process);
 
             // This process is no longer running, switch execution flow
             schedule();
         }
-	}
+    }
     // Note that inthandler and intclockhandler are unblocking process that requested I/O operations OR sleeping processes
-	else if (op == UNLOCK) {
-		if (prevSemVal < 0) {
-			// Remove the process at the head of the corresponding Device or Pseudo-clock Semaphore Queue
-			proc_t* process = removeBlocked(semAddr);
+    else if (op == UNLOCK) {
+        if (prevSemVal < 0) {
+            // Remove the process at the head of the corresponding Device or Pseudo-clock Semaphore Queue
+            proc_t* process = removeBlocked(semAddr);
 
-			// If the process is no longer blocked on any other semaphores, then add it back to the RQ
-			if (process != (proc_t*)ENULL && process->qcount == 0) {
-				insertProc(&readyQueue, process);
-			}
-		}
-	}
+            // If the process is no longer blocked on any other semaphores, then add it back to the RQ
+            if (process != (proc_t*)ENULL && process->qcount == 0) {
+                insertProc(&readyQueue, process);
+            }
+        }
+    }
 }
 
 
 /*
-	This function does an intsemop(LOCK) on a global variable called pseudoclock.
+    This function does an intsemop(LOCK) on a global variable called pseudoclock.
 */
 void waitforpclock()
 {
@@ -174,7 +174,7 @@ void waitforpclock()
     proc_t* process = headQueue(readyQueue);
 
     // Grab the interrupted process's state 
-	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+    state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
     // Update the process's current processor state
     process->p_s = *SYS_TRAP_OLD_STATE;
@@ -185,17 +185,17 @@ void waitforpclock()
 
 
 /*
-	This instruction performs a P operation on the semaphore that the nucleus maintains
-	for the I/O device whose number is in D4. All possible devices for the EMACSIM are
-	assigned unique numbers in the range 0-14 as shown in the const.h file of Appendix 2.
+    This instruction performs a P operation on the semaphore that the nucleus maintains
+    for the I/O device whose number is in D4. All possible devices for the EMACSIM are
+    assigned unique numbers in the range 0-14 as shown in the const.h file of Appendix 2.
     The appropriate device semaphore is V’ed every time an interrupt is generated by the I/O device.
 
-	Once the process resumes after the occurrence of the anticipated interrupt for printer
-	and terminal devices, D2 should contain the contents of the Length register for the
-	appropriate device and, for all devices, D3 should contain the contents of the
-	device’s Status register. These two registers constitute the I/O operation completion
-	status (see above), and may have already been stored by nucleus. This will occur in
-	cases where an I/O interrupt occurs before the corresponding SYS8 instruction
+    Once the process resumes after the occurrence of the anticipated interrupt for printer
+    and terminal devices, D2 should contain the contents of the Length register for the
+    appropriate device and, for all devices, D3 should contain the contents of the
+    device’s Status register. These two registers constitute the I/O operation completion
+    status (see above), and may have already been stored by nucleus. This will occur in
+    cases where an I/O interrupt occurs before the corresponding SYS8 instruction
 */
 void waitforio()
 {
@@ -203,15 +203,15 @@ void waitforio()
     proc_t* process = headQueue(readyQueue);
 
     // Grab the interrupted process's state and registers
-	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+    state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
     // Check if interrupt has already occured which happens on a V (+1) operation 
     int deviceNumber = SYS_TRAP_OLD_STATE->s_r[4];
 
     // In the case where the device interrupt has NOT occured, BLOCK on that device's semaphore until we recieve the interrupt (V op)
     if (deviceSemaphores[deviceNumber] <= 0) {
-		// Update the process's current processor state as it will be blocked and its state will need to be loaded later
-		process->p_s = *SYS_TRAP_OLD_STATE;
+        // Update the process's current processor state as it will be blocked and its state will need to be loaded later
+        process->p_s = *SYS_TRAP_OLD_STATE;
         intsemop(&deviceSemaphores[deviceNumber], LOCK);
     }
     // Otherwise the device semaphores value is 1, meaning the interrupt occured
@@ -229,15 +229,16 @@ void waitforio()
 
 
 /*
-	This function saves the completion status if a wait_for_io call has not been received,
+    This function saves the completion status if a wait_for_io call has not been received,
     or it does an intsemop(UNLOCK) on the semaphore corresponding to that device.
 */
 void static inthandler(int deviceNumber, int deviceType)
 {
-	// Since the process that initiated the I/O might be blocked and not currently running, we need to save
-	// the device's completion status (operation status and length for printer/terminal devices) separately
-	// The saved completion status will be accessed later when the original process that requested the I/O resumes
+    // Since the process that initiated the I/O might be blocked and not currently running, we need to save
+    // the device's completion status (operation status and length for printer/terminal devices) separately
+    // The saved completion status will be accessed later when the original process that requested the I/O resumes
     int offset = 0;
+
     if (deviceType == PRINTER)
         offset = 5;
     if (deviceType == DISK)
@@ -247,18 +248,19 @@ void static inthandler(int deviceNumber, int deviceType)
 
     int deviceIndex = deviceNumber + offset;
 
-	// The wait_for_io call was made previously by if the device's semaphore is -1, as only calling the wait_for_io could have blocked, hence this interrupt was eventually expected
+    // The wait_for_io call was made previously by if the device's semaphore is -1, as only calling the wait_for_io could have blocked, hence this interrupt was eventually expected
     if (deviceSemaphores[deviceIndex] == -1) {
-        // Unblock the waiting process by performing a V (+1) operation
-        intsemop(&deviceSemaphores[deviceIndex], UNLOCK);
-
         // Return status and length if applicable
         proc_t* process = headBlocked(&deviceSemaphores[deviceIndex]);
 
-		process->p_s.s_r[3] = deviceRegisters[deviceIndex]->d_stat;
-		if (deviceType == PRINTER || deviceType == TERMINAL) {
-			process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd;
-		}
+        // The device registers are stored in memory, accessible and indexable with our deviceRegisters arr
+        process->p_s.s_r[3] = deviceRegisters[deviceIndex]->d_stat;
+        if (deviceType == PRINTER || deviceType == TERMINAL) {
+            process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd;
+        }
+
+        // Unblock the waiting process by performing a V (+1) operation
+        intsemop(&deviceSemaphores[deviceIndex], UNLOCK);
     }
     // Otherwise the interrupt occurs before the process has a chance to invoke wait_for_io, such as when a device finishes its operation very quickly
     else {
@@ -266,19 +268,19 @@ void static inthandler(int deviceNumber, int deviceType)
         // The process in this case does not need to be blocked and can just get the completion status and continue
         deviceSemaphores[deviceIndex]++;
 
-		// Update this devices completion status via the Status and Length register
-		deviceCompletionStats[deviceIndex].status = deviceRegisters[deviceIndex]->d_stat;
-		if (deviceType == PRINTER || deviceType == TERMINAL) {
-			deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
-		}
+        // Update this devices completion status via the Status and Length register
+        deviceCompletionStats[deviceIndex].status = deviceRegisters[deviceIndex]->d_stat;
+        if (deviceType == PRINTER || deviceType == TERMINAL) {
+            deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
+        }
     }
 }
 
 
 /*
-	This function is called when the RQ is empty. If there are processes blocked on the pseudoclock, it calls intschedule() and it
-	goes to sleep. If there are processes blocked on the I/O semaphores it goes to sleep. If there are no processes left it shuts
-	down normally and it prints a normal termination message. Otherwise it prints a deadlock message.
+    This function is called when the RQ is empty. If there are processes blocked on the pseudoclock, it calls intschedule() and it
+    goes to sleep. If there are processes blocked on the I/O semaphores it goes to sleep. If there are no processes left it shuts
+    down normally and it prints a normal termination message. Otherwise it prints a deadlock message.
 */
 void intdeadlock()
 {
@@ -304,19 +306,20 @@ void intdeadlock()
     // If we reach this point, this means there are no process blocked on I/O semaphores OR on the pseudo-clock semaphore
     // Check if there are any other process blocked by any other normal Semaphores (ASL list is empty meaning the CPU has executed all processes)
     if (!headASL()) {
-		//printresult("Normal termination of CPU");
-		HALT();
+        //printresult("Normal termination of CPU");
+        HALT();
     }
     else {
-		//printresult("Deadlock occurred"); // TODO fix wording ???
-		HALT();
+        //printresult("Deadlock occurred"); // TODO fix wording ???
+        HALT();
     }
 }
 
 
 /*
-    If the RQ is not empty, this function removes the process at the head of the queue and it then adds it to the tail of the queue.
-    This function does an intsemop(UNLOCK) on the pseudoclock semaphore if necessary and then it calls schedule() to begin the execution of the process at the head of the RQ.
+    If the RQ is not empty, this function removes the process at the head of the queue and it then adds it to 
+    the tail of the queue. This function does an intsemop(UNLOCK) on the pseudoclock semaphore if
+    necessary and then it calls schedule() to begin the execution of the process at the head of the RQ.
 */
 void static intclockhandler()
 {
@@ -324,25 +327,32 @@ void static intclockhandler()
     proc_t* process = headQueue(readyQueue);
 
     // Grab the interrupted process's state and registers
-	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+    state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
     // Update the running process's state before we load next process on CPU
     process->p_s = *SYS_TRAP_OLD_STATE;
 
+    // Only the hardware timer can generate clock interrupts. Since every interrupt should happen a qunatum apart, add it to the pseudo-clock
+    PSEUDO_CLOCK += TIME_SLICE_INTERVAL;
+
     // Perform Round robin, remove process at head and add to tail of RQ
     if (process != (proc_t*)ENULL) {
         removeProc(&readyQueue);
-        //updateTotalTimeOnProcessor(process);
         insertProc(&readyQueue, process);
-
-		// TODO Check how long the processes blocked by the Semaphore Pseudoclock have been blocked and 'wake them up' by re-adding them to RQ
-
-		// Prepare to run next process in RQ for some time slice
-		schedule();
+        //updateTotalTimeOnProcessor(process);
     }
-    else {
-        intdeadlock();
+
+	// Check how much time has passed on the pseudo-clock and unblock the first sleeping process on the pseudo clock semaphore
+    if (PSEUDO_CLOCK >= 100000) {
+        proc_t* asleepProcess = headBlocked(&PSEUDO_CLOCK_SEMAPHORE);
+        if (asleepProcess != (proc_t*)ENULL) {
+            intsemop(&PSEUDO_CLOCK_SEMAPHORE, UNLOCK);
+        }
+        PSEUDO_CLOCK = 0;
     }
+
+    // This call guarantees that intschedule is invoked if the RQ is NOT empty, guaranteeing unstopped timed interrupts
+	schedule();
 }
 
 
@@ -433,7 +443,7 @@ void static intfloppyhandler()
     This function loads several entries in the EVT, it sets the new areas for the interrupts,
     and it defines the locations of the device registers.
 
-	Since each semaphore is paried with a device to enable event-driven, asynchronous device functionaliyy, use an an 
+    Since each semaphore is paried with a device to enable event-driven, asynchronous device functionaliyy, use an an 
     array of semaphores indexed by the device numbers listed in const.h to keep track of whether the device is blocking on while we wait for 
     an interrupt and some sort of completion status.
 
@@ -446,49 +456,49 @@ void intinit()
     // Load the device registers for each device
     int i;
     for (i = 0; i < TOTAL_DEVICES; i++) {
-		// Each devreg_t is 16 bytes long (0x10 apart)
-		deviceRegisters[i] = (devreg_t*)BEGINDEVREG + i;
-		deviceSemaphores[i] = 0;
+        // Each devreg_t is 16 bytes long (0x10 apart)
+        deviceRegisters[i] = (devreg_t*)BEGINDEVREG + i;
+        deviceSemaphores[i] = 0;
     }
 
-	// Allocate New and Old State Areas for Device Interrupts
+    // Allocate New and Old State Areas for Device Interrupts
     TERM_INTERRUPT_OLD_STATE = (state_t*)BEGININTR;
     state_t* TERM_INTERRUPT_NEW_STATE = (state_t*)TERM_INTERRUPT_OLD_STATE + 1;
-	TERM_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
-	TERM_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                        // Set Supervisor Bit
+    TERM_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
+    TERM_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                        // Set Supervisor Bit
     TERM_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                      // Interrupt priority disabled
-	TERM_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
-	TERM_INTERRUPT_NEW_STATE->s_pc = (int)intterminalhandler;	                    // The address for this device's specific handler
+    TERM_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
+    TERM_INTERRUPT_NEW_STATE->s_pc = (int)intterminalhandler;	                    // The address for this device's specific handler
 
     PRINTER_INTERRUPT_OLD_STATE = (state_t*)0xa60;
     state_t* PRINTER_INTERRUPT_NEW_STATE = (state_t*)PRINTER_INTERRUPT_OLD_STATE+ 1;
-	PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
-	PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
+    PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
+    PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
     PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                   // Interrupt priority disabled
-	PRINTER_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                // Set the global stack pointer to the top, where the Kernel memory is allocated
-	PRINTER_INTERRUPT_NEW_STATE->s_pc = (int)intprinterhandler;    	                // The address for this specific handler
+    PRINTER_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                // Set the global stack pointer to the top, where the Kernel memory is allocated
+    PRINTER_INTERRUPT_NEW_STATE->s_pc = (int)intprinterhandler;    	                // The address for this specific handler
 
     DISK_INTERRUPT_OLD_STATE= (state_t*)0xaf8;
     state_t* DISK_INTERRUPT_NEW_STATE = (state_t*)DISK_INTERRUPT_OLD_STATE + 1;
-	DISK_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
-	DISK_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                        // Set Supervisor Bit
+    DISK_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
+    DISK_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                        // Set Supervisor Bit
     DISK_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                      // Interrupt priority disabled
-	DISK_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
-	DISK_INTERRUPT_NEW_STATE->s_pc = (int)intdiskhandler;       	                // The address for this specific handler
+    DISK_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
+    DISK_INTERRUPT_NEW_STATE->s_pc = (int)intdiskhandler;       	                // The address for this specific handler
 
     FLOPPY_INTERRUPT_OLD_STATE= (state_t*)0xb90;
     state_t* FLOPPY_INTERRUPT_NEW_STATE= (state_t*)FLOPPY_INTERRUPT_OLD_STATE + 1;
-	FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
-	FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
+    FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
+    FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
     FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                    // Interrupt priority disabled
-	FLOPPY_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                // Set the global stack pointer to the top, where the Kernel memory is allocated
-	FLOPPY_INTERRUPT_NEW_STATE->s_pc = (int)intfloppyhandler;	                    // The address for this specific handler
+    FLOPPY_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                // Set the global stack pointer to the top, where the Kernel memory is allocated
+    FLOPPY_INTERRUPT_NEW_STATE->s_pc = (int)intfloppyhandler;	                    // The address for this specific handler
 
     CLOCK_INTERRUPT_OLD_STATE= (state_t*)0xc28;
     state_t* CLOCK_INTERRUPT_NEW_STATE = (state_t*)CLOCK_INTERRUPT_OLD_STATE + 1;
-	CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
-	CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
+    CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
+    CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
     CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                     // Interrupt priority disabled
-	CLOCK_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
-	CLOCK_INTERRUPT_NEW_STATE->s_pc = (int)intclockhandler;		                    // The address for this specific handler
+    CLOCK_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
+    CLOCK_INTERRUPT_NEW_STATE->s_pc = (int)intclockhandler;		                    // The address for this specific handler
 }
