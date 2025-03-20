@@ -296,9 +296,6 @@ void getcputime()
 	// Grab the interrupted process
 	proc_t* process = headQueue(readyQueue);
 
-	// TODO ASK
-	// process->p_s = SYS_TRAP_OLD_STATE; TODO NECESSARY OR NOT SINCE THIS PROCE STATE WILL BE REALOADED ANYAWY??????
-
 	// Get the time spent on the CPU from the process
 	SYS_TRAP_OLD_STATE->s_r[2] = process->total_processor_time;
 }

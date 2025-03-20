@@ -82,18 +82,17 @@ proc_t* removeBlocked(int* semAddr)
     }
 
     // Remove the first proc from the process queue of the ASL semaphore
-    proc_link* tp = &semaphoreDescriptor->s_link;
-    proc_t* headProc = removeProc(tp);
+    proc_t* process = removeProc(&semaphoreDescriptor->s_link);
 
     // Check if the associated process queue is now empty
-    if (tp->next == (proc_t*)ENULL) {
+    if (semaphoreDescriptor->s_link.next == (proc_t*)ENULL) {
         // Remove the Sem descriptor from the ASL and put it on the Free List
         removeSemaphoreFromActiveList(semaphoreDescriptor);
     }
 
     // Remove this semaphore from the process's semvac vector
-    removeSemaphoreFromProcessVector(semAddr, headProc);
-    return headProc;
+    removeSemaphoreFromProcessVector(semAddr, process);
+    return process;
 }
 
 
@@ -147,12 +146,12 @@ proc_t* headBlocked(int* semAddr)
 {
     semd_t* semaphoreDescriptor = getSemaphoreFromActiveList(semAddr);
 
-    // There is no semaphore descriptor associated with this address or list is empty
-    if (semaphoreDescriptor == (semd_t*)ENULL || semaphoreDescriptor->s_link.next == (proc_t*)ENULL) {
-        return (proc_t*)ENULL;
+    if (semaphoreDescriptor != (semd_t*)ENULL && semaphoreDescriptor->s_link.next != (proc_t*)ENULL) {
+		return headQueue(semaphoreDescriptor->s_link);
     }
 
-    return headQueue(semaphoreDescriptor->s_link);
+    // There is no semaphore descriptor associated with this address or list is empty
+	return (proc_t*)ENULL;
 }
 
 
@@ -260,34 +259,29 @@ void insertSemaphoreIntoActiveList(semd_t* s)
 */
 void removeSemaphoreFromActiveList(semd_t* s)
 {
+    // Edge case
     if (semd_h == (semd_t*)ENULL || s == (semd_t*)ENULL) {
         return;
     }
 
-    semd_t* prevSemd = s->s_prev;
-    semd_t* nextSemd = s->s_next;
-
-    // ASL with single element
-    if (semd_h == s && nextSemd == (semd_t*)ENULL && prevSemd == (semd_t*)ENULL) {
-        semd_h = (semd_t*)ENULL;
-		returnSemaphoreToFreeList(s);
-        return;
-    }
-
-    // Removal at the head of the ASL
+    // Removal of head
     if (s == semd_h) {
-        semd_h = nextSemd;
-        nextSemd->s_prev = (semd_t*)ENULL;
-		returnSemaphoreToFreeList(s);
-        return;
+        semd_h = s->s_next;
+        if (semd_h != (semd_t*)ENULL) {
+            semd_h->s_prev = (semd_t*)ENULL;
+        }
+    }
+    // After head
+    else {
+        if (s->s_next != (semd_t*)ENULL) {
+            s->s_next->s_prev = s->s_prev;
+        }
+        if (s->s_prev != (semd_t*)ENULL) {
+            s->s_prev->s_next = s->s_next;
+        }
     }
 
-    // Remove the Sem descriptor from multi-element ASL
-    prevSemd->s_next = nextSemd;
-    if (nextSemd != (semd_t*)ENULL) {
-        nextSemd->s_prev = prevSemd;
-    }
-	returnSemaphoreToFreeList(s);
+    returnSemaphoreToFreeList(s);
 }
 
 
@@ -362,14 +356,7 @@ void returnSemaphoreToFreeList(semd_t* s)
 	resetSemaphore(s);
 
     //  When the free list is empty, let s be the first element
-    if (semdFree_h == (semd_t*)ENULL) {
-        semdFree_h = s;
-        return;
-    }
-
-    // Insert at the head of the free list
     s->s_next = semdFree_h;
-    semdFree_h->s_prev = s;
     semdFree_h = s;
 }
 

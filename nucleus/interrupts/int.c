@@ -56,8 +56,8 @@
 */
 
 #define TOTAL_DEVICES 15
+#define QUANTUM 5000;
 
-// 
 typedef struct {
     int status;
     int length;
@@ -71,7 +71,6 @@ devreg_t* deviceRegisters[TOTAL_DEVICES];
 /* Global Variables */
 int PSEUDO_CLOCK = 0;               // Clock to track total time in milliseconds CPU has been active
 int PSEUDO_CLOCK_SEMAPHORE = 0;     // No free resources
-long TIME_SLICE_INTERVAL = 5000;    // Quantum of 5 milliseconds
 
 extern int MEMSTART;
 extern proc_link readyQueue;
@@ -114,7 +113,8 @@ void static sleep()
 */
 void intschedule()
 {
-    LDIT(&TIME_SLICE_INTERVAL);
+    long INTERVAL_SLICE = QUANTUM;
+    LDIT(&INTERVAL_SLICE);
 }
 
 
@@ -153,7 +153,7 @@ void static intsemop(int* semAddr, int op)
     // Note that inthandler and intclockhandler are unblocking process that requested I/O operations OR sleeping processes
     else if (op == UNLOCK) {
         if (prevSemVal < 0) {
-            // Remove the process at the head of the corresponding Device or Pseudo-clock Semaphore Queue
+            // Remove the process at the head of the corresponding Device or pseudo-clock Semaphore Queue
             proc_t* process = removeBlocked(semAddr);
 
             // If the process is no longer blocked on any other semaphores, then add it back to the RQ
@@ -210,20 +210,18 @@ void waitforio()
 
     // In the case where the device interrupt has NOT occured, BLOCK on that device's semaphore until we recieve the interrupt (V op)
     if (deviceSemaphores[deviceNumber] <= 0) {
-        // Update the process's current processor state as it will be blocked and its state will need to be loaded later
-        process->p_s = *SYS_TRAP_OLD_STATE;
+		// Update the process's current processor state as it will be blocked and its state will need to be loaded later
+		process->p_s = *SYS_TRAP_OLD_STATE;
         intsemop(&deviceSemaphores[deviceNumber], LOCK);
     }
     // Otherwise the device semaphores value is 1, meaning the interrupt occured
     else {
+        // At this point, inthandler will have already been invoked and has incremented the semaphore value ONLY
         SYS_TRAP_OLD_STATE->s_r[2] = deviceCompletionStats[deviceNumber].length;
         SYS_TRAP_OLD_STATE->s_r[3] = deviceCompletionStats[deviceNumber].status;
 
         // Decrement (P) that devices semaphore as the device operation has already been completed, resuming this process's execution via LDST in trap.c
         deviceSemaphores[deviceNumber]--; 
-
-        // NOTE we don't need to call INTSEMOP since the semaphore value will be positive beforehand (=1)
-        // so this semaphore won't be freeing any resources and hence there wont be the need to add a freed process to the RQ
     }
 }
 
@@ -232,21 +230,11 @@ void waitforio()
     This function saves the completion status if a wait_for_io call has not been received,
     or it does an intsemop(UNLOCK) on the semaphore corresponding to that device.
 */
-void static inthandler(int deviceNumber, int deviceType)
+void static inthandler(int deviceIndex)
 {
     // Since the process that initiated the I/O might be blocked and not currently running, we need to save
     // the device's completion status (operation status and length for printer/terminal devices) separately
     // The saved completion status will be accessed later when the original process that requested the I/O resumes
-    int offset = 0;
-
-    if (deviceType == PRINTER)
-        offset = 5;
-    if (deviceType == DISK)
-        offset = 7;
-    if (deviceType == FLOPPY)
-        offset = 11;
-
-    int deviceIndex = deviceNumber + offset;
 
     // The wait_for_io call was made previously by if the device's semaphore is -1, as only calling the wait_for_io could have blocked, hence this interrupt was eventually expected
     if (deviceSemaphores[deviceIndex] == -1) {
@@ -254,10 +242,9 @@ void static inthandler(int deviceNumber, int deviceType)
         proc_t* process = headBlocked(&deviceSemaphores[deviceIndex]);
 
         // The device registers are stored in memory, accessible and indexable with our deviceRegisters arr
-        process->p_s.s_r[3] = deviceRegisters[deviceIndex]->d_stat;
-        if (deviceType == PRINTER || deviceType == TERMINAL) {
-            process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd;
-        }
+        // Wait-for-io also stores these values, return them
+		process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd; // length
+        process->p_s.s_r[3] = deviceRegisters[deviceIndex]->d_stat; // status
 
         // Unblock the waiting process by performing a V (+1) operation
         intsemop(&deviceSemaphores[deviceIndex], UNLOCK);
@@ -270,9 +257,7 @@ void static inthandler(int deviceNumber, int deviceType)
 
         // Update this devices completion status via the Status and Length register
         deviceCompletionStats[deviceIndex].status = deviceRegisters[deviceIndex]->d_stat;
-        if (deviceType == PRINTER || deviceType == TERMINAL) {
-            deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
-        }
+		deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
     }
 }
 
@@ -289,8 +274,8 @@ void intdeadlock()
         // Call intschedule to prepare a timer interrupt to invoke intclockhandler to load the next process on the RQ
         intschedule();
 
-        // Halt the CPU while we wait for this to timed interrupt to occur to load next process
-        sleep();
+        // Halt the CPU while we wait for this timed interrupt to occur to load next process
+		sleep();
     }
 
     // In case where we are waiting for devices to send an interrupt as indication for the completion of some operation
@@ -298,8 +283,9 @@ void intdeadlock()
     for (i = 0; i < TOTAL_DEVICES; i++) {
         // if any process is blocked on an I/O semaphore, sleep so the CPU can conserve resources
         if (headBlocked(&deviceSemaphores[i]) != (proc_t*)ENULL) {
+			// Halt the CPU while we wait for this to timed interrupt to occur to load next process
             sleep();
-            break; // TODO ? does sleep return to this point of execution
+            break;
         }
     }
 
@@ -326,26 +312,21 @@ void static intclockhandler()
     // Grab the process currently runningo on the CPU
     proc_t* process = headQueue(readyQueue);
 
-    // Grab the interrupted process's state and registers
-    state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
-
-    // Update the running process's state before we load next process on CPU
-    process->p_s = *SYS_TRAP_OLD_STATE;
-
     // Only the hardware timer can generate clock interrupts. Since every interrupt should happen a qunatum apart, add it to the pseudo-clock
-    PSEUDO_CLOCK += TIME_SLICE_INTERVAL;
+    PSEUDO_CLOCK += QUANTUM;
 
     // Perform Round robin, remove process at head and add to tail of RQ
     if (process != (proc_t*)ENULL) {
-        removeProc(&readyQueue);
-        insertProc(&readyQueue, process);
+		// Update the running process's state before we load next process on CPU
+        proc_t* removedProcess = removeProc(&readyQueue);
+		removedProcess->p_s = *CLOCK_INTERRUPT_OLD_STATE;
+        insertProc(&readyQueue, removedProcess);
         //updateTotalTimeOnProcessor(process);
     }
 
 	// Check how much time has passed on the pseudo-clock and unblock the first sleeping process on the pseudo clock semaphore
     if (PSEUDO_CLOCK >= 100000) {
-        proc_t* asleepProcess = headBlocked(&PSEUDO_CLOCK_SEMAPHORE);
-        if (asleepProcess != (proc_t*)ENULL) {
+        if (headBlocked(&PSEUDO_CLOCK_SEMAPHORE) != (proc_t*)ENULL) {
             intsemop(&PSEUDO_CLOCK_SEMAPHORE, UNLOCK);
         }
         PSEUDO_CLOCK = 0;
@@ -357,24 +338,24 @@ void static intclockhandler()
 
 
 /*
-    Interrupt Request Handlers (these routines pass the device type and the device number to inthandler())
+    Interrupt Request Handlers (these routines pass the device type and the device number to inthandler)
 */
 void static intterminalhandler() 
 {
     // Grab the interrupt's corresponding device information stored in the appropiate Device Old Area
     tmp_t tempStorage = TERM_INTERRUPT_OLD_STATE->s_tmp;
-    int deviceNumber = tempStorage.tmp_int.in_dev;
+    int deviceNumber = tempStorage.tmp_int.in_dno;          // relative device number
+    proc_t* process = headQueue(readyQueue);
 
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
-    inthandler(deviceNumber, TERMINAL);
+    inthandler(deviceNumber);
 
-    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
-    if (headQueue(readyQueue) == (proc_t*)ENULL) {
-        intdeadlock();
+	// Check if RQ is empty, otherwise continue executing program
+    if (process != (proc_t*)ENULL) {
+        LDST(TERM_INTERRUPT_OLD_STATE);
     }
     else {
-        // Otherwise we resume the process on the CPU
-        LDST(TERM_INTERRUPT_OLD_STATE);
+        schedule();
     }
 }
 
@@ -383,18 +364,18 @@ void static intprinterhandler()
 {
     // Grab the interrupt's corresponding device information stored in the appropiate Device Old Area
     tmp_t tempStorage = PRINTER_INTERRUPT_OLD_STATE->s_tmp;
-    int deviceNumber = tempStorage.tmp_int.in_dev;
+    int deviceNumber = tempStorage.tmp_int.in_dno;          // relative device number
+    proc_t* process = headQueue(readyQueue);
 
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
-    inthandler(deviceNumber, PRINTER);
+    inthandler(deviceNumber + 5);
 
-    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
-    if (headQueue(readyQueue) == (proc_t*)ENULL) {
-        intdeadlock();
+	// Check if RQ is empty, otherwise continue executing program
+    if (process != (proc_t*)ENULL) {
+        LDST(PRINTER_INTERRUPT_OLD_STATE);
     }
     else {
-        // Otherwise we resume the process on the CPU
-        LDST(PRINTER_INTERRUPT_OLD_STATE);
+        schedule();
     }
 }
 
@@ -403,18 +384,18 @@ void static intdiskhandler()
 {
     // Grab the interrupt's corresponding device information stored in the appropiate Device Old Area
     tmp_t tempStorage = DISK_INTERRUPT_OLD_STATE->s_tmp;
-    int deviceNumber = tempStorage.tmp_int.in_dev;
+    int deviceNumber = tempStorage.tmp_int.in_dno;          // relative device number
+    proc_t* process = headQueue(readyQueue);
 
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
-    inthandler(deviceNumber, DISK);
+    inthandler(deviceNumber + 7);
 
-    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
-    if (headQueue(readyQueue) == (proc_t*)ENULL) {
-        intdeadlock();
+	// Check if RQ is empty, otherwise continue executing program
+    if (process != (proc_t*)ENULL) {
+        LDST(DISK_INTERRUPT_OLD_STATE);
     }
     else {
-        // Otherwise we resume the process on the CPU
-        LDST(DISK_INTERRUPT_OLD_STATE);
+        schedule();
     }
 }
 
@@ -423,18 +404,18 @@ void static intfloppyhandler()
 {
     // Grab the interrupt's corresponding device information stored in the appropiate Device Old Area
     tmp_t tempStorage = FLOPPY_INTERRUPT_OLD_STATE->s_tmp;
-    int deviceNumber = tempStorage.tmp_int.in_dev;
+    int deviceNumber = tempStorage.tmp_int.in_dno;
+    proc_t* process = headQueue(readyQueue);
 
     // The generic interrupt handler will perform an unlock operation on this device's semaphore to indicate that it finished an operation
-    inthandler(deviceNumber, FLOPPY);
+    inthandler(deviceNumber + 11);
 
-    // Since the process that requested the I/O may not be the interrupted process on the CPU, check if the RQ has any processes left
-    if (headQueue(readyQueue) == (proc_t*)ENULL) {
-        intdeadlock();
+	// Check if RQ is empty, otherwise continue executing program
+    if (process != (proc_t*)ENULL) {
+        LDST(FLOPPY_INTERRUPT_OLD_STATE);
     }
     else {
-        // Otherwise we resume the process on the CPU
-        LDST(FLOPPY_INTERRUPT_OLD_STATE);
+        schedule();
     }
 }
 
@@ -457,7 +438,7 @@ void intinit()
     int i;
     for (i = 0; i < TOTAL_DEVICES; i++) {
         // Each devreg_t is 16 bytes long (0x10 apart)
-        deviceRegisters[i] = (devreg_t*)BEGINDEVREG + i;
+        deviceRegisters[i] = (devreg_t*)(BEGINDEVREG + i * 0x10);
         deviceSemaphores[i] = 0;
     }
 

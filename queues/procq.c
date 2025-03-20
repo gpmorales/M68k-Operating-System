@@ -290,6 +290,11 @@ void resetProcess(proc_t* p)
     p->total_processor_time = 0;
     p->last_start_time = 0;
 
+    // Remove all progeny links
+	p->parent_proc = (proc_t*)ENULL;
+	p->sibling_proc = (proc_t*)ENULL;
+	p->children_proc = (proc_t*)ENULL;
+
     // Remove any semaphores or proc links associated with this proc_t entry
     int i;
     for (i = 0; i < SEMMAX; i++) {
@@ -297,11 +302,6 @@ void resetProcess(proc_t* p)
         p->p_link[i].next = (proc_t*)ENULL;
         p->semvec[i] = (int*)ENULL;
     }
-
-    // Remove all progeny links
-	p->parent_proc = (proc_t*)ENULL;
-	p->sibling_proc = (proc_t*)ENULL;
-	p->children_proc = (proc_t*)ENULL;
 }
 
 

@@ -95,29 +95,29 @@ void static trapsyshandler()
     // Determine the exact system routine needed to handle trap
     switch (SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no) {
         case (1):
-            createproc();
+            createproc();     
             break;
         case (2):
-            killproc();
+            killproc();      
             break;
         case (3):
-            semop();
+            semop();        
             break;
         case (4):
             notused();
             break;
         case (5):
-            trapstate();
+            trapstate();   
             break;
         case (6):
-            getcputime();
+            getcputime(); 
             break;
         case (7):
             waitforpclock();
         case (8):
-            waitforio();
+            waitforio();   
         default:
-            trapsysdefault();
+            trapsysdefault(); 
             break;
     }
 
