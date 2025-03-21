@@ -64,13 +64,15 @@ void schedule()
 
 	if ((runningProcess = headQueue(readyQueue)) != (proc_t*)ENULL) {
 		state_t state = runningProcess->p_s;
-		// Load this process's state into the CPU
+		// Prime the Interval Timer
 		intschedule();
+		// Update this process's current start time
 		updateLastStartTime(runningProcess);
+		// Load this process's state into the CPU
 		LDST(&state);
 	} 
 	else {
-		// CPU is starved -> trigger a trap with no handler and halt the CPU
+		// This will put the CPU is an idle state to consume resources until an interrupt occurs
 		intdeadlock();
 	}
 }
@@ -78,7 +80,7 @@ void schedule()
 
 void main() 
 {
-	// SETS ASIDE A CHUNK OF MEOMRY FOR THE KERNEL ROUTINES AT THE LARGEST MEMORY LOCATION 
+	// Set aside a chunk of memory for the Kernel routines at the highest memory location
 	init();
 
 	// Allocate a Process entry for the initial process p1 from the Process free list

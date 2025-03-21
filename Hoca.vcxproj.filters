@@ -88,7 +88,7 @@
     <ClCompile Include="nucleus\traps\p1.c">
       <Filter>nucleus\traps</Filter>
     </ClCompile>
-    <ClCompile Include="notes\NucleasPart1.c">
+    <ClCompile Include="notes\NucleasPart1.h">
       <Filter>notes</Filter>
     </ClCompile>
     <ClCompile Include="nucleus\traps\p1.2.c">

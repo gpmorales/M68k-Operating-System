@@ -8,6 +8,7 @@
 #include "../../h/procq.e"				
 #include "../../h/int.e"				
 
+
 /*
     This module handles the traps, it has the following static functions:
     trapinit(), trap-syshandler(), trapmmhandler(), and trapproghandler()
@@ -21,8 +22,8 @@
     This function handles 9 different traps. It has a switch statment and each case calls a function.
     Two of the functions, waitforpclock() and waitforio() are in int.c The other secen are in syscall.c
 
-    NOTE: During init() I will map the EVT entries 32-47 to the corresponding SYS functions addresses. 
-    The tmp_sys.sys_no field will hold that trap number, letting the kernel know which SYS function (SYS1-SYS7) to execute.
+    NOTE: During init(), the EVT entries 32-47 will be mapped to the corresponding SYS functions addresses. 
+    The tmp_sys.sys_no field will hold the appropiate trap number so the kernel can invoke the corresponding SYS routine (SYS1-SYS8)
 
     - void static trapmmhandler():
     - void static trapproghandler():
@@ -45,29 +46,24 @@ void static trapsyshandler();
 void static trapproghandler();
 void static trapproghandler();
 
-/* Processor Time Utility routines */
+/* Utility time routines */
 void updateTotalTimeOnProcessor(proc_t* p);
 void updateLastStartTime(proc_t* p);
 
 
 /*
-    When a trap/exception occurs, the hardware auto-saves the interrupted process state to the designated trap's old state area (0x800, 0x900, 0x930)
+    When a trap/exception occurs, the hardware auto-saves the interrupted process state to
+    the designated trap's old state area (0x800, 0x900, 0x930)
 
-    WHEN a TRAP HANDLER IS INVOKED WE CHECK THAT SYS5 (Specify_Trap_Vector) HAS BEEN 
-    PROPERLY INVOKED BEFOREHAND AND THAT IT HAS ALREADY SPECIFCIED THE CORRECT TRAP HANDLER (state_t* xx_trap_new_state) 
-    IN THE INTERRUPTED PROC STRUCT AND THE ADDRESS TO STORE THE OLD/INTERRUPTED PROC STATE (state_t* xx_trap_old_state, that addr points elsewhere)
+	XX_TRAP_OLD_STATE -> state of the process when it threw a trap of type XX
+	XX_TRAP_NEW_STATE -> trap handler process state along with registers, PC, SP, etc. needed to execute the handler routine
 
-    XX_TRAP_OLD_STATE -> state of the process when it causes Trap of type XX
-    XX_TRAP_NEW_STATE -> state of the handler process and its specifics to handler Trap of type XX
-
-    NOTE that only instructions SYS1 to SYS8 are treated as instructions by the nucleus (We define these routines).
-    The other SYS instructions (SYS9 to SYS17) are passed up as SYS traps to trapsysdefault()
+    Only SYS1-SYS8 are handled by routines defined in the nucleus. The other SYS routines (SYS9-SYS17) are passed up to trapsysdefault
 */
 void static trapsyshandler() 
 {
-    // *** Recall that on trap/interrupts, the Hardware saves the CPUs processor state in the Global Trap Areas ***
+    // Grab the interrupted process from the RQ
     proc_t* process = headQueue(readyQueue);
-
     updateTotalTimeOnProcessor(process);
 
     // Case where that the invoking process is NOT in supervisor mode and is a SYS call we handle
@@ -75,7 +71,7 @@ void static trapsyshandler()
         // Update the system trap old state struct -> prog trap type
         SYS_TRAP_OLD_STATE->s_tmp.tmp_pr.pr_typ = PRIVILEGE;
 
-        // Ensure the process's old state and new state areas have been properly initialized
+		// The process's old state area has been initialized and the appropiate new prog handler is present in the process's new prog area
         if (process->prog_trap_new_state != (state_t*)ENULL && process->prog_trap_old_state != (state_t*)ENULL) {
             // Update process start time as we load it unto the CPU
             updateLastStartTime(process);
@@ -87,7 +83,7 @@ void static trapsyshandler()
             LDST(process->prog_trap_new_state);
         } 
         else {
-            // No handler address in the PTE for this trap, kill the interrupted process
+			// No handler address the PTE for this trap or area to store its previous state
             killproc();
         }
     }
@@ -95,36 +91,36 @@ void static trapsyshandler()
     // Determine the exact system routine needed to handle trap
     switch (SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no) {
         case (1):
-            createproc();     
+            createproc();       // LDST loads the state of this process right before the interrupt/trap
             break;
         case (2):
-            killproc();      
+            killproc();         // Invokes schedule, no need to save state of this process
             break;
         case (3):
-            semop();        
+            semop();            // May invoke schedule, saves the process->p_s when added to blocked queue
             break;
         case (4):
             notused();
             break;
         case (5):
-            trapstate();   
+            trapstate();        // LDST loads the state of this process right before the interrupt/trap or kills process
             break;
         case (6):
-            getcputime(); 
+            getcputime();       // LDST loads the state of this process right before the interrupt/trap
             break;
         case (7):
-            waitforpclock();
+            waitforpclock();    // May invoke schedule, saves the process->p_s on LOCK operation
+            break;
         case (8):
-            waitforio();   
+            waitforio();        // May invoke schedule, saves the process->p_s on LOCK operation
+            break;
         default:
-            trapsysdefault(); 
+            trapsysdefault();   // LDST loads the sys trap handler from the new area state
             break;
     }
 
-    // Kernel is about to reload the process on the CPU
+    // Reload the interrupted process on the CPU
     updateLastStartTime(process);
-
-    // Note that for routines SYS1-6, we return the execution flow to the original process via LDST()
     LDST(SYS_TRAP_OLD_STATE);
 }
 
@@ -137,7 +133,7 @@ void static trapmmhandler()
     // Grab the interrupted process from the RQ
     proc_t* process = headQueue(readyQueue);
 
-    // Ensure the process's old state and new state areas have been properly initialized
+	// The process's old state area has been initialized and the appropiate new mm handler is present in the process's new mm area
     if (process->mm_trap_new_state != (state_t*)ENULL && process->mm_trap_old_state != (state_t*)ENULL) {
         // Update process start time as we load it unto the CPU
         updateLastStartTime(process);
@@ -149,7 +145,7 @@ void static trapmmhandler()
         LDST(process->mm_trap_new_state);
     }
     else {
-        // No handler address in the PTE for this trap, kill the interuupted process
+		// No handler address in the PTE for this trap or area to store its previous state
         killproc(process);
     }
 }
@@ -163,7 +159,7 @@ void static trapproghandler()
     // Grab the interrupted process from the RQ
     proc_t* process = headQueue(readyQueue);
 
-    // Ensure the process's old state and new state areas have been properly initialized
+	// The process's old state area has been initialized and the appropiate new prog handler is present in the process's new prog area
     if (process->prog_trap_new_state != (state_t*)ENULL && process->prog_trap_old_state != (state_t*)ENULL) {
         // Update process start time as we load it unto the CPU
         updateLastStartTime(process);
@@ -175,32 +171,33 @@ void static trapproghandler()
         LDST(process->prog_trap_new_state);
     } 
     else {
-        // No handler address in the PTE for this trap, kill the interrupted process
+		// No handler address in the PTE for this trap or area to store its previous state
         killproc();
     }
 }
 
 
 /*
-    When invoked, we are about to run a process on the CPU, so its previous start date must be recorded to calculate the total
-    amount of time spend on the CPU since processes may be blocked and run on slices
+    When invoked, the kernel is loading this process on the CPU, so its previous start date must be updated
+    to calculate the total time spent on the CPU since processes are pre-empted and/or removed from the RQ.
 */
 void updateLastStartTime(proc_t* process) 
 {
     // Grab the head process from the RQ
-    long currentTime;
+    long currentTime = 0;
     STCK(&currentTime);
     process->last_start_time = currentTime;
 }
 
 
 /*
-    When invoked, we are removing the prcoess from the CPU, so we want to recalculate the total amount of time it has been running altogether (accumulate time slices)
+    When the kernel removes the current prcoess from the RQ, so we use this to recalculate the
+    total amount of time the removed process was on the CPU by adding the current time slice.
 */
 void updateTotalTimeOnProcessor(proc_t* process) 
 {
     // Grab the head process from the RQ
-    long currentTime;
+    long currentTime = 0;
     STCK(&currentTime);
     long prevTimeSlice = currentTime - process->last_start_time;
     process->total_processor_time += prevTimeSlice;
