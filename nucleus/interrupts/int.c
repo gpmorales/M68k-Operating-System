@@ -2,7 +2,7 @@
     This code is my own work, it was written without consulting code written by other students current or previous or using any AI tools
     George Morales
 */
-
+#include <string.h>
 #include "../../h/const.h"
 #include "../../h/types.h"
 #include "../../h/vpop.h"
@@ -249,15 +249,13 @@ void static inthandler(int deviceIndex)
     }
     // Otherwise the interrupt occurs before the process has a chance to invoke wait_for_io
     else {
-        // The device’s Status register constitute the I/O operation completion status,
-        // and have already been stored by nucleus (deviceRegisters). 
+        // The device’s Status register constitute the I/O operation completion status, and has already been stored by nucleus (deviceRegisters). 
         // Update this devices completion stats's Status and Length register so we can return it in waitforio
         deviceCompletionStats[deviceIndex].status = deviceRegisters[deviceIndex]->d_stat;
 		deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
 
         // Increment the semaphore value to indicate the interrupt already occured
         deviceSemaphores[deviceIndex]++;
-
     }
 }
 
@@ -291,11 +289,11 @@ void intdeadlock()
     // If we reach this point, this means there are no process blocked on I/O semaphores OR on the pseudo-clock semaphore
     // Check if there are any other process blocked by any other normal Semaphores (ASL list is empty meaning the CPU has executed all processes)
     if (!headASL()) {
-        //printresult("Normal termination of CPU");
+        myprint("nucleus: normal termination");
         HALT();
     }
     else {
-        //printresult("Deadlock occurred"); // TODO fix wording ???
+        myprint("nucleus: deadlock termination");
         HALT();
     }
 }
@@ -432,6 +430,23 @@ void static intfloppyhandler()
     else {
         schedule();
     }
+}
+
+
+/*
+    My print function will write to printer 0
+*/
+void myprint(char* msg)
+{
+    // Get printer0's device register from memory
+    devreg_t* printer0 = deviceRegisters[5];
+    printer0->d_stat = DEVNOTREADY;              // Set status code to non 0 value as we prepare to request I/O
+    printer0->d_dadd = strlen(msg);     // For printer, the length of data
+    printer0->d_badd = msg;             // Buffer address has the pointer to the data we are handing to device
+    printer0->d_op = IOWRITE;           // Set the device operation status to WRITE
+
+    // 'Block' until operation is done
+    while (printer0->d_stat != NORMAL);
 }
 
 
