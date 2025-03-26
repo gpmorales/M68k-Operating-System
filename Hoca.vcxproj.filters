@@ -44,6 +44,9 @@
     <ClInclude Include="h\vpop.h">
       <Filter>h</Filter>
     </ClInclude>
+    <ClInclude Include="notes\MemoryManagement.h">
+      <Filter>notes</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Notes\Intro.h">

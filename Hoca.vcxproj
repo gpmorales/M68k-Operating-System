@@ -157,6 +157,7 @@
     <ClInclude Include="h\util.h" />
     <ClInclude Include="h\vpop.h" />
     <ClInclude Include="notes\Exceptions.h" />
+    <ClInclude Include="notes\MemoryManagement.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="h\types.h" />
