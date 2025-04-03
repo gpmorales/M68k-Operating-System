@@ -177,6 +177,8 @@
     <ClCompile Include="queues\p1test.c" />
     <ClCompile Include="queues\p1test2.c" />
     <ClCompile Include="queues\procq.c" />
+    <ClCompile Include="support\part1\slsyscall1.c" />
+    <ClCompile Include="support\part1\support.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e" />

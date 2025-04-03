@@ -24,6 +24,9 @@
     <Filter Include="nucleus\interrupts">
       <UniqueIdentifier>{afe8195d-8cf1-4e24-b102-276c794ba8c7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="support\part1">
+      <UniqueIdentifier>{05f2a215-1a06-4edc-ab74-be5b47d6d6bc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Notes\Exceptions.h">
@@ -99,6 +102,12 @@
     </ClCompile>
     <ClCompile Include="nucleus\interrupts\intp1.c">
       <Filter>nucleus\interrupts</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part1\support.c">
+      <Filter>support\part1</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part1\slsyscall1.c">
+      <Filter>support\part1</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
