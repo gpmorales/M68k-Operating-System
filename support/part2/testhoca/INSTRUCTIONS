@@ -1,0 +1,78 @@
+
+The expect scripts in this directory will automate the testing of your support/part2 solution.
+
+Random interrupts will be used and a range of seeds that you specify will be tested.
+
+TEST1:
+Please copy these termin files to your support/part2 directory:
+
+/home/cs580000/share/hoca/support/part2/termin0
+/home/cs580000/share/hoca/support/part2/termin1
+/home/cs580000/share/hoca/support/part2/termin2
+/home/cs580000/share/hoca/support/part2/termin3
+/home/cs580000/share/hoca/support/part2/termin4
+
+Please run the following script with a range of seeds, for example:
+
+/home/cs580000/share/hoca/support/part2/testhoca/testhocaauto.sh  3000  3500
+
+This script should print a "." for each correct execution, or something
+similar to the following if there is an error:
+
+ERROR: termout1
+t1 starts
+t1 ok: time increasing
+t1 error: did not delay MICROSECONDS
+---------------------------------
+t1 starts
+t1 ok: time increasing
+t1 ok: MICROSECONDS delay
+---------------------------------
+(errors: 1, files: 5/5)  seed: 3199
+
+If you see an error, you should manually run emacsim and confirm that you can reproduce the error
+with that specific seed:
+
+emacsim hoca -r3199
+
+You should then debug your solution and fix the error.
+---------------------------------------------------------------------------------------------------
+
+TEST2: Testing of the disk processes:
+
+Please copy the termin.disk files from /home/cs580000/share/hoca/support/part2 and rename them:
+
+termin0 = termin0.disk
+termin1 = termin1.disk
+termin2 = termin2.disk
+termin3 = termin3.disk
+termin4 = termin4.disk
+
+Please run the following script with a range of seeds, for example:
+
+/home/cs580000/share/hoca/support/part2/testhoca/testhocadiskauto.sh  3000 3500
+
+---------------------------------------------------------------------------------------------------
+
+TEST3: Testing of the semaphore processes:
+
+Please copy the termin.sem files from /home/cs580000/share/hoca/support/part2 and rename them:
+
+termin0 = termin0.sem
+termin1 = termin1.sem
+termin2 = termin2.disk
+termin3 = termin3.disk
+termin4 = termin4.disk
+
+Please run the following script with a range of seeds, for example:
+
+/home/cs580000/share/hoca/support/part2/testhoca/testhocasemauto.sh 3000 3500
+
+---------------------------------------------------------------------------------------------------
+NOTES:
+Five trprocs are required to use these expect scripts.
+
+You should try different ranges of seeds to check if your hoca program is working properly
+or to detect errors.
+
+

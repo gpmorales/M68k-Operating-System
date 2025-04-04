@@ -1,0 +1,5 @@
+t2 starts
+t2 ok: disk i/o result
+t2 ok: first disk sector readback
+t2 ok: second disk sector readback
+t2 ok: device capacity detection

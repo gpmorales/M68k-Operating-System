@@ -1,0 +1,31 @@
+
+1.  Please test your solutions with random floppy interrupts.  
+    The interrupts will always arrive at the same time, the
+	simulator runs in deterministic mode.  If you answer yes
+	when emacsim prompts you, and if you provide a seed, 
+	then the interrupts will arrive randomly.  If you run
+	into problems, please rerun emacsim with the random
+	interrupts and the same seed.
+
+
+2. Elevator Algorithm Test: 
+
+Please copy 
+
+  termin0.disk to termin0 
+  termin1.disk to termin1
+  termin2.disk to termin2 
+  termin3.disk to termin3 
+  termin4.disk to termin4 
+
+
+3. Semaphore Test:
+
+Please copy:
+ 
+  termin0.sem to termin0
+  termin1.sem to termin1
+
+Please do not test termin3/termin4 together with termin0.sem/termin1.sem.
+The reason is that these four tprocesses are all trying to use Segment 2 
+for synchronization.

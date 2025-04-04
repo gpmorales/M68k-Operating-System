@@ -179,6 +179,20 @@
     <ClCompile Include="queues\procq.c" />
     <ClCompile Include="support\part1\slsyscall1.c" />
     <ClCompile Include="support\part1\support.c" />
+    <ClCompile Include="support\part2\dt0.c" />
+    <ClCompile Include="support\part2\dt1.c" />
+    <ClCompile Include="support\part2\dt2.c" />
+    <ClCompile Include="support\part2\dt3.c" />
+    <ClCompile Include="support\part2\dt4.c" />
+    <ClCompile Include="support\part2\page.c" />
+    <ClCompile Include="support\part2\semt0.c" />
+    <ClCompile Include="support\part2\semt1.c" />
+    <ClCompile Include="support\part2\slsyscall2.c" />
+    <ClCompile Include="support\part2\t0.c" />
+    <ClCompile Include="support\part2\t1.c" />
+    <ClCompile Include="support\part2\t2.c" />
+    <ClCompile Include="support\part2\t3.c" />
+    <ClCompile Include="support\part2\t4.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e" />

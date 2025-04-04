@@ -1,0 +1,28 @@
+directory ../../nucleus/traps
+directory ../../nucleus/interrupts
+directory ../part1
+define gcrpload
+set *(int *)0x418 = *(int *)0x40c
+end
+define pfi
+set $i=0
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+set $i+=1
+printf "i: %d  term: %d  page:%d track: %d  sector: %d\n", $i, frameinfo[$i].terminal, frameinfo[$i].page, frameinfo[$i].track, frameinfo[$i].sector
+end

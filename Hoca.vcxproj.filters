@@ -109,6 +109,48 @@
     <ClCompile Include="support\part1\slsyscall1.c">
       <Filter>support\part1</Filter>
     </ClCompile>
+    <ClCompile Include="support\part2\dt0.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt1.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt2.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt3.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt4.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\page.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\semt0.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\semt1.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\slsyscall2.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t0.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t1.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t2.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t3.c">
+      <Filter>notes</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t4.c">
+      <Filter>notes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="h\asl.e">

@@ -229,9 +229,8 @@ void p1()
 				page.pd_p = 0;	
 			}
 		}
-
-		// TODO Fill the last page frame with the boot code 
 	}
+
 
 	// ** Initialize Single System Process (Cron daemon) with only a Privileged Mode Segment Table **
 
@@ -281,23 +280,34 @@ void p1()
 
 
 	// Pageinit() initialize Stack pointers: Tsysstack[i], Tmmstack[i], Scronstack, Spagedstack, Sdiskstack
-	// It also ensures that we can allocate frames via getfreeframe() by marking usuable physical pages
+	// It also ensures that we can allocate frames via getfreeframe() by marking USUABLE physical pages
 
 	// RECALL: Multiple T-processes can enter the support level concurrently via SYS traps, 
 	// or MM traps that are handled using the memory space of page frames mapped by Segment 0 (Nucleus data)
 	// If these processes share the same stack space, concurrent modifications would occur overwriting crucial data
 	// Hence each T-process will get a SYS Trap stack -> Tsysstack[i] and a MM Trap stack -> Tmmstack[i]
-
 	pageinit();
 
-	// Allocate page 31 in each T-process's user-mode page table (Segment 1)to load the bootcode.
+	// Allocate page 31 in each T-process's user-mode page table (Segment 1) to load the bootcode.
 	// The bootcode initializes the user program by setting up trap vectors (SYS5s) 
 	// and then transfers control to the actual user code.
 	for (i = 0; i < TERMINAL_PROCESS; i++) {
 		runnable_process_t terminalProcess = terminal_processes[i];
 
+		// Get the Page table for Segment 1 of the User Mode Segement Table
 		pd_t* userPageTable = terminalProcess.user_mode_sd_table[1].sd_pta;
-		userPageTable[31] = 
+
+		// Turn off the presence bit for page frames (initially we dont not want to allocate dpages unneccesarily)
+		int pgDesc;
+		for (pgDesc = 0; pgDesc < 31; pgDesc++) {
+			userPageTable[pgDesc].pd_p = 0;
+		}
+
+		// Allocate a free page frame for this process
+		userPageTable[31].pd_frame = getfreeframe(i, 31, 1);
+
+		// Load the boot code into this page frame TODO
+		for (i )
 	}
 
 	// TODO NOTE: CPU Root Pointer will point to the privilege segment descriptor table [Seg 0 maps to Support level pages and memory]
