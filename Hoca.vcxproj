@@ -158,6 +158,7 @@
     <ClInclude Include="h\vpop.h" />
     <ClInclude Include="notes\Exceptions.h" />
     <ClInclude Include="notes\MemoryManagement.h" />
+    <ClInclude Include="support\part1\h\tconst.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="h\types.h" />
@@ -177,8 +178,12 @@
     <ClCompile Include="queues\p1test.c" />
     <ClCompile Include="queues\p1test2.c" />
     <ClCompile Include="queues\procq.c" />
+    <ClCompile Include="support\part1\bootcode.c" />
+    <ClCompile Include="support\part1\print.c" />
     <ClCompile Include="support\part1\slsyscall1.c" />
     <ClCompile Include="support\part1\support.c" />
+    <ClCompile Include="support\part1\t0.c" />
+    <ClCompile Include="support\part1\t1.c" />
     <ClCompile Include="support\part2\dt0.c" />
     <ClCompile Include="support\part2\dt1.c" />
     <ClCompile Include="support\part2\dt2.c" />
@@ -204,6 +209,11 @@
     <None Include="queues\p1test3.c" />
     <None Include="queues\README" />
     <None Include="queues\README.instructions" />
+    <None Include="support\part1\gdbinit" />
+    <None Include="support\part1\Makefile" />
+    <None Include="support\part1\README" />
+    <None Include="support\part1\termin0" />
+    <None Include="support\part1\termin1" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="notes\Scheduling.h" />

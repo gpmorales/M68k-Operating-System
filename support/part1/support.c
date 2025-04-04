@@ -61,6 +61,21 @@
 // Stored in support level data (PA)
 #define TERMINAL_PROCESS 2
 
+// boot strap loader object code
+int bootcode[] = {
+	0x41f90008,
+	0x00002608,
+	0x4e454a82,
+	0x6c000008,
+	0x4ef90008,
+	0x0000d1c2,
+	0x787fb882,
+	0x6d000008,
+	0x10bc000a,
+	0x52486000,
+	0xffde4e71
+};
+
 // Declare function addresses for Support segments
 extern int startt1();
 extern int etext();
@@ -306,11 +321,15 @@ void p1()
 		// Allocate a free page frame for this process
 		userPageTable[31].pd_frame = getfreeframe(i, 31, 1);
 
-		// Load the boot code into this page frame TODO
-		for (i )
+		// Load the boot code into this page frame
+		int* pageStart = (int*) (userPageTable[31].pd_frame * PAGESIZE);
+		int j;
+		for (j = 0; j < 12; i++) {
+			*(pageStart + j) = bootcode[j];
+		}
 	}
 
-	// TODO NOTE: CPU Root Pointer will point to the privilege segment descriptor table [Seg 0 maps to Support level pages and memory]
+	// TODO NOTE: CPU Root Pointer will point to the kernel mode Segment Descriptor table [Seg 0 maps to Support level pages and memory]
 
 
 }

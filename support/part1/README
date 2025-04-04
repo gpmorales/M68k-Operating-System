@@ -1,0 +1,47 @@
+1.  In part1 you only need termin0 and termin1
+
+2.  p1a runs with mm turned on.  Please make sure that p1a has 
+	access to:
+    segment 0 page 2    memory mapped registers
+    segment 0 (the page where the p1a sp is)
+
+3.  The debugger does not know how to deal with the virtual addresses
+in segment 1.  A special command "gcrpload" has been defined in
+the gdbinit file in this directory that will enable you to trace 
+the tprocesses running in segment 1.  Please copy the file gdbinit 
+to .gdbinit in your part1 directory.
+
+At the end of tprocess(), you will execute a LDST to load a state
+with a PC pointing to the bootcode.  The bootcode is in segment 1.
+Please set a breakpoint at the LDST at the end of tprocess() and 
+single step to the end of LDST (the "rte" instruction). If you 
+try to go into segment 1, you will get a warning msg:
+
+set breakpoint at LDST
+run
+display/i $pc
+si several times
+...
+0x64cc in LDST ()
+1: x/i $pc  0x64cc <LDST+100>:	rte
+(emacsim) si 
+0x83e00 in ?? ()
+1: x/i $pc  0x83e00:	warning: no crp at 0x418 (gcrp)warning: emacsimptrace, addr not equal on readwarning: no crp at 0x418 (gcrp)warning:
+
+Please note that 0x64cc is an address in segment 0, and it contains
+the "rte" instruction, which is the last instruction in LDST.
+
+You need to type "gcrpload" before the rte instruction is executed:
+
+0x64cc in LDST ()
+1: x/i $pc  0x64cc <LDST+100>:	rte
+(emacsim) gcrpload
+(emacsim) si
+0x83e00 in ?? ()
+1: x/i $pc  0x83e00:	lea @#0x80000,a0
+(emacsim) 
+0x83e06 in ?? ()
+1: x/i $pc  0x83e06:	move.l a0,d3
+
+
+Note that you can now trace the process in segment 1.
