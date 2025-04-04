@@ -27,15 +27,18 @@
     <Filter Include="support\part1">
       <UniqueIdentifier>{05f2a215-1a06-4edc-ab74-be5b47d6d6bc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="support\part1\h">
+      <UniqueIdentifier>{af574ffc-c20b-40b6-84f2-3d975a57c489}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="support\part2">
+      <UniqueIdentifier>{5a39d423-da6a-47bb-8230-b0916348132b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Notes\Exceptions.h">
       <Filter>notes</Filter>
     </ClInclude>
     <ClInclude Include="h\asl.h">
-      <Filter>h</Filter>
-    </ClInclude>
-    <ClInclude Include="h\const.h">
       <Filter>h</Filter>
     </ClInclude>
     <ClInclude Include="h\procq.h">
@@ -50,8 +53,11 @@
     <ClInclude Include="notes\MemoryManagement.h">
       <Filter>notes</Filter>
     </ClInclude>
-    <ClInclude Include="support\part1\h\tconst.h">
+    <ClInclude Include="h\const.h">
       <Filter>h</Filter>
+    </ClInclude>
+    <ClInclude Include="support\part1\h\tconst.h">
+      <Filter>support\part1\h</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -97,7 +103,7 @@
     <ClCompile Include="nucleus\traps\p1.c">
       <Filter>nucleus\traps</Filter>
     </ClCompile>
-    <ClCompile Include="notes\NucleasPart1.h">
+    <ClCompile Include="notes\NucleusPart1.h">
       <Filter>notes</Filter>
     </ClCompile>
     <ClCompile Include="nucleus\traps\p1.2.c">
@@ -112,59 +118,59 @@
     <ClCompile Include="support\part1\slsyscall1.c">
       <Filter>support\part1</Filter>
     </ClCompile>
-    <ClCompile Include="support\part2\dt0.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\dt1.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\dt2.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\dt3.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\dt4.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\page.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\semt0.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\semt1.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\slsyscall2.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\t0.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\t1.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\t2.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\t3.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part2\t4.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part1\bootcode.c">
-      <Filter>notes</Filter>
-    </ClCompile>
-    <ClCompile Include="support\part1\print.c">
-      <Filter>notes</Filter>
-    </ClCompile>
     <ClCompile Include="support\part1\t0.c">
-      <Filter>notes</Filter>
+      <Filter>support\part1</Filter>
     </ClCompile>
     <ClCompile Include="support\part1\t1.c">
-      <Filter>notes</Filter>
+      <Filter>support\part1</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part1\print.c">
+      <Filter>support\part1</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part1\bootcode.c">
+      <Filter>support\part1</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t0.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t1.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t2.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t3.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\t4.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\semt0.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\semt1.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\slsyscall2.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\page.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt4.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt0.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt1.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt2.c">
+      <Filter>support\part2</Filter>
+    </ClCompile>
+    <ClCompile Include="support\part2\dt3.c">
+      <Filter>support\part2</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -195,11 +201,75 @@
     <None Include="h\int.e">
       <Filter>h</Filter>
     </None>
-    <None Include="support\part1\README" />
-    <None Include="support\part1\gdbinit" />
-    <None Include="support\part1\Makefile" />
-    <None Include="support\part1\termin0" />
-    <None Include="support\part1\termin1" />
+    <None Include="support\part1\README">
+      <Filter>support\part1</Filter>
+    </None>
+    <None Include="support\part1\gdbinit">
+      <Filter>support\part1</Filter>
+    </None>
+    <None Include="support\part1\Makefile">
+      <Filter>support\part1</Filter>
+    </None>
+    <None Include="support\part1\termin0">
+      <Filter>support\part1</Filter>
+    </None>
+    <None Include="support\part1\termin1">
+      <Filter>support\part1</Filter>
+    </None>
+    <None Include="support\part2\gdbinit">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\Makefile">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\page.c.new">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\README">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\t4.c.1M">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin0">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin0.disk">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin0.sem">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin1">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin1.disk">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin1.sem">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin2">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin2.disk">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin3">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin3.disk">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin4">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin4.disk">
+      <Filter>support\part2</Filter>
+    </None>
+    <None Include="support\part2\termin4.off.recompiled1M">
+      <Filter>support\part2</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="notes\Scheduling.h">

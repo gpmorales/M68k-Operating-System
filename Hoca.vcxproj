@@ -164,7 +164,7 @@
     <ClCompile Include="h\types.h" />
     <ClCompile Include="notes\ActiveSemaphores.h" />
     <ClCompile Include="notes\Intro.h" />
-    <ClCompile Include="notes\NucleasPart1.h" />
+    <ClCompile Include="notes\NucleusPart1.h" />
     <ClCompile Include="notes\OperatingSystems101.h" />
     <ClCompile Include="notes\Processes.h" />
     <ClCompile Include="nucleus\interrupts\int.c" />
@@ -214,6 +214,24 @@
     <None Include="support\part1\README" />
     <None Include="support\part1\termin0" />
     <None Include="support\part1\termin1" />
+    <None Include="support\part2\gdbinit" />
+    <None Include="support\part2\Makefile" />
+    <None Include="support\part2\page.c.new" />
+    <None Include="support\part2\README" />
+    <None Include="support\part2\t4.c.1M" />
+    <None Include="support\part2\termin0" />
+    <None Include="support\part2\termin0.disk" />
+    <None Include="support\part2\termin0.sem" />
+    <None Include="support\part2\termin1" />
+    <None Include="support\part2\termin1.disk" />
+    <None Include="support\part2\termin1.sem" />
+    <None Include="support\part2\termin2" />
+    <None Include="support\part2\termin2.disk" />
+    <None Include="support\part2\termin3" />
+    <None Include="support\part2\termin3.disk" />
+    <None Include="support\part2\termin4" />
+    <None Include="support\part2\termin4.disk" />
+    <None Include="support\part2\termin4.off.recompiled1M" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="notes\Scheduling.h" />

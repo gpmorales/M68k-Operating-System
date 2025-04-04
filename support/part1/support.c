@@ -12,7 +12,6 @@
 	It has the following functions : p1(), p1a(), slsyshandler(), slmmhandler(), slproghandler(), tprocess() and cron().
 */
 
-
 /*
 	Execution Flow of the HOCA Memory Managment System:
 		- A user-mode T-process generates a Virtual Address with a segment number, page number, and offset.
@@ -24,7 +23,6 @@
 		- In the correspoding Page Table and Page Table Entry, the MMU acquires the physical Page Frame number,
 		- which is combined with the offset to compute the final physical address.
 */
-
 
 /*
 	Each Terminal Process (T-Process) effectively has 2 Segment Tables:
@@ -60,6 +58,7 @@
 
 // Stored in support level data (PA)
 #define TERMINAL_PROCESS 2
+#define KERNEL_PAGES 256
 
 // boot strap loader object code
 int bootcode[] = {
@@ -76,6 +75,11 @@ int bootcode[] = {
 	0xffde4e71
 };
 
+// Pointers for Terminal process SYS/MM Disjointed Stacks
+extern int Tsysstack[5];
+extern int Tmmstack[5];
+extern int Scronstack;
+
 // Declare function addresses for Support segments
 extern int startt1();
 extern int etext();
@@ -83,6 +87,8 @@ extern int startd1();
 extern int edata();
 extern int startb1();
 extern int end();
+
+void static p1a();
 
 #define START_SUPPORT_TEXT ((int)startt1 / PAGESIZE)
 #define END_SUPPORT_TEXT ((int)etext / PAGESIZE)
@@ -101,7 +107,7 @@ typedef struct runnable_process_t {
 	sd_t kernel_mode_sd_table[32];		// Uses Segment Entry 0, 1, 2. Segment 0 maps pages for Support data, text, bss, & handler (restricted, requires privilege mode)
 
 	pd_t user_mode_pd_table[32];		// The Page Table for Segment Entry 1 (user/private pages)
-	pd_t kernel_mode_pd_table[32];		// The Page Table for Segment Entry 0 (kernel pages)
+	pd_t kernel_mode_pd_table[256];		// The Page Table for Segment Entry 0 (kernel pages)
 
 	// For User System Calls (SYS9-SYS17), virtual addresses are used which won't work wtih nucleus. 
 	// These will pass up these up to Support which will be able to handle the virtual addresses
@@ -194,7 +200,7 @@ void p1()
 
 		// Initialize the process's Kernel-mode Page Table
 		//
-		// This table maps virtual page numbers to physical page frames.
+		// This table maps virtual pages to physical page frames.
 		// When the CPU accesses a virtual address, the MMU uses this table to find the corresponding Page Descriptor
 		// which is then used to get the Page Frame # that is used to calculate a Physical Address in memory (see pic).
 		//
@@ -205,7 +211,7 @@ void p1()
 		// 4. Support BSS segment (from START_SUPPORT_BSS to END_SUPPORT_BSS)
 		// 5. SEG0 (specifically page 2)
 		//
-		// For each page descriptor i (0-31), we determine if it falls within the address range
+		// For each page descriptor i (0-256), we determine if it falls within the address range
 		// of one of these segments. If it does, we mark that page as present (pd_p = 1).
 		// Otherwise, we mark it as not present (pd_p = 0) to prevent access.
 		//
@@ -213,7 +219,7 @@ void p1()
 		// addresses of Segment Markers in physical memory (like startt1, etext) by PAGESIZE to get page frame #'s.
 
 		int pgFrame;
-		for (pgFrame = 0; pgFrame < 32; pgFrame++) {
+		for (pgFrame = 0; pgFrame < KERNEL_PAGES; pgFrame++) {
 			pd_t page = terminalProcess.kernel_mode_pd_table[pgFrame];
 
 			// Each page descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
@@ -265,7 +271,7 @@ void p1()
 
 	// Initialize the Page Descriptor Table for Segment 0 of the Cron's Privileged Mode Segment Table
 	int pgFrame;
-	for (pgFrame = 0; pgFrame < 32; pgFrame++) {
+	for (pgFrame = 0; pgFrame < KERNEL_PAGES; pgFrame++) {
 		pd_t page = system_cron_process.kernel_mode_pd_table[pgFrame];
 
 		// Each page descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
@@ -329,8 +335,36 @@ void p1()
 		}
 	}
 
-	// TODO NOTE: CPU Root Pointer will point to the kernel mode Segment Descriptor table [Seg 0 maps to Support level pages and memory]
+	// Load the p1a/Cron process
+	state_t p1aState;
+	p1aState.s_sr.ps_m = 1;			// Memory management on
+	p1aState.s_sr.ps_int = 0;		// Interrupts on
+	p1aState.s_sr.ps_s = 1;			// Supervisor/Privilege mode on
+	p1aState.s_pc = (int)p1a;		// Set program counter to p1a routine
+	p1aState.s_sp = Scronstack;		// Set the stack pointer to the Cron deamon stack address in the Stack's segment
+    // CPU Root Pointer will point to the Kernel Mode Segment Descriptor table of the Cron daemon so the MMU knows where to read data from physical memory
+	p1aState.s_crp = &system_cron_process.kernel_mode_sd_table;
 
+	LDST(&p1a);
+}
+
+
+
+/*
+	This routine will execute the process will create T-processes in a loop that.
+	Each T-process will be in supervisor mode as it starts up because it has to do its SYS5’s, etc. In setting
+	up the states for the created T - processes, the root process should give each a disjoint stack. 
+
+	This can be done by setting the CRP register and also the SP register in the state of the created process:
+	<create a generic start state for T - processes>;
+	for (each terminal) {
+		< set the CRP to the Segment Table for this terminal in start state>;
+		< set SP to Tsysstack[terminal] in start state>;
+		<create process>;
+	}
+*/
+void static p1a() 
+{
 
 }
 
