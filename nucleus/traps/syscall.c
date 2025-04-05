@@ -223,15 +223,15 @@ void notused() {
 
 /*
 	When this instruction is executed, it supplies three pieces of information to the nucleus:
-	  • The type of trap for which a trap state vector is being established. This information will be placed in D2 at the time of the call, using the following encoding:
-		0-program trap
-		1-memory management trap
-		2-SYS trap
+	  - The type of trap for which a trap state vector is being established. This information will be placed in D2 at the time of the call, using the following encoding:
+		0 - program trap
+		1 - memory management trap
+		2 - SYS trap
 
-	  • The area into which the processor state (the old state) is to be stored when a trap
+	  - The area into which the processor state (the old state) is to be stored when a trap
 	    occurs while running this process. THE ADDRESS OF THIS AREA WILL BE IN D3.
 
-	  • The processor state area that is to be taken as the new processor state if a trap
+	  - The processor state area that is to be taken as the new processor state if a trap
 	    occurs while running this process. THE ADDRESS OF THIS AREA WILL BE IN D4.
 
 	The nucleus, on execution of this instruction, should save the contents of D3 and D4
