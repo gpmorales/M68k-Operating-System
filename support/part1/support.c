@@ -59,6 +59,10 @@
 #define T_PROCESS_COUNT 2
 #define KERNEL_PAGES 256
 
+// Kernel Routines
+#define DO_CREATEPROC  SYS3;
+#define DO_SPECTRAPVEC SYS5;
+
 // Global CPU registers
 register int r2 asm("%d2");
 register int r3 asm("%d3");
@@ -96,7 +100,6 @@ extern int end();
 void static p1a();
 void static cron();
 void static tprocess();
-
 
 #define START_SUPPORT_TEXT ((int)startt1 / PAGESIZE)
 #define END_SUPPORT_TEXT ((int)etext / PAGESIZE)
@@ -138,15 +141,6 @@ const runnable_process_t terminal_processes[2];
 
 // Cron Daemon/Systemn Process
 runnable_process_t system_cron_process;
-
-
-// NOTES FOR LATER:
-// For User System Calls (SYS9-SYS17), virtual addresses are used which won't work wtih nucleus. 
-// These will pass up these up to Support which will be able to handle the virtual addresses
-
-// T Process -> SYS9 -> EVT (Privilege Trap) -> Save T Process state in SYS TRAP OLD AREA -> systraphandler -> trapsysdefault -> load the state from proc.SYS_NEW_STATE
-// The state that we load would be NEW_SUPPORT_SYS_TRAP_AREA (SYS5 stores SYS TRAP NEW AREA into NEW_SUPPORT_SYS_TRAP_AREA)
-// and this would call the PC would be at slsystraphandler 
 
 
 /*
@@ -339,7 +333,7 @@ void p1()
 		// Get the User Mode Page Table (maps Segment 1) of this Terminal Process
 		pd_t* userPageTable = terminalProcess->user_mode_sd_table[1].sd_pta;
 
-		// Turn off the presence bit for page frames (initially we dont not want to allocate dpages unneccesarily)
+		// Turn off the presence bit for page frames (initially we dont not want to allocate Pages unneccesarily)
 		int pgDesc;
 		for (pgDesc = 0; pgDesc < 31; pgDesc++) {
 			userPageTable[pgDesc].pd_p = 0;
@@ -358,9 +352,9 @@ void p1()
 
 	// Create p1a process state
 	state_t p1aState;
+	p1aState.s_sr.ps_s = 1;			// Supervisor/Privilege mode on
 	p1aState.s_sr.ps_m = 1;			// Memory management on
 	p1aState.s_sr.ps_int = 0;		// Interrupts on
-	p1aState.s_sr.ps_s = 1;			// Supervisor/Privilege mode on
 	p1aState.s_pc = (int)p1a;		// Set program counter to p1a routine
 	p1aState.s_sp = Scronstack;		// Set the stack pointer to the Cron deamon stack address in the Stack's segment
 
@@ -406,6 +400,9 @@ void static p1a()
 		// Set program counter to tprocess() to specify the process's Trap Areas
 		privilegedProcessState.s_pc = (int)tprocess;
 
+		// Pass the terminal process identifier
+		privilegedProcessState.s_r[7] = i;
+
 		// Set the initial process state in System Old Trap Area register 'd4'
 		r4 = (int)&privilegedProcessState;
 
@@ -437,62 +434,70 @@ void static tprocess()
 	// - Where to save the process’s state when a specific trap occurs (D3 -> old state pointer)
 	// - What processor state to load when handling that trap (D4 -> new state pointer)
 	// Each T-process needs to initialize the memory locations of these areas for each Trap Type
+	state_t priviligedTerminalProcessState;
 
-	// TODO ASK WHETHER WE DO THIS FOR EACH PROC????
+	// Store the privileged Perminal Process state (added to the RQ via CREATEPROC) which invoked this routine
+	STST(&priviligedTerminalProcessState);
 
-	//state_t privilgedProcessState;
-	//STST -> check if PC points to Tsysstack[i] -> target term process?
+	// Prepare the correct Terminal Process state to run
+	int term_idx = priviligedTerminalProcessState.s_r[7];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
-	int i;
-	for (i = 0; i < T_PROCESS_COUNT; i++) {
-		runnable_process_t* terminalProcess = &terminal_processes[i];
 
-		// Specify System Trap Areas
-		r2 = SYSTRAP;
+	// Specify System Trap Areas
+	r2 = SYSTRAP;
 
-		// Set the old state address in D3
-		r3 = (int)&terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE;
+	// Set the old state address in D3
+	r3 = (int)&terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE;
 
-		// TODO slides say d4 will have hte terminal number!!!???
-		// Set the new state address in D4
-		r4 = (int)&terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE;
+	// TODO slides say d4 will have the terminal number!!!???
+	// Set the new state address in D4
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_pc = (int)slsyshandler;
+	r4 = (int)&terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE;
 
-		// invoke SYS5
-		DO_SPECTRAPVEC();
+	// invoke SYS5
+	DO_SPECTRAPVEC();
 
-		// Specify Program Trap Areas
-		r2 = PROGTRAP;
 
-		// Set the old state address in D3
-		r3 = (int)&terminalProcess->SUPPORT_PROG_TRAP_OLD_STATE;
+	// Specify Program Trap Areas
+	r2 = PROGTRAP;
 
-		// Set the new state address in D4
-		r4 = (int)&terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE;
+	// Set the old state address in D3
+	r3 = (int)&terminalProcess->SUPPORT_PROG_TRAP_OLD_STATE;
 
-		// invoke SYS5
-		DO_SPECTRAPVEC();
+	// Set the new state address in D4
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_pc = (int)slproghandler;
+	r4 = (int)&terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE;
 
-		// Specify Memory Management Trap Areas
-		r2 = MMTRAP;
+	// invoke SYS5
+	DO_SPECTRAPVEC();
 
-		// Set the old state address in D3
-		r3 = (int)&terminalProcess->SUPPORT_MM_TRAP_OLD_STATE;
 
-		// Set the new state address in D4
-		r4 = (int)&terminalProcess->SUPPORT_MM_TRAP_NEW_STATE;
+	// Specify Memory Management Trap Areas
+	r2 = MMTRAP;
 
-		// invoke SYS5
-		DO_SPECTRAPVEC();
-	}
+	// Set the old state address in D3
+	r3 = (int)&terminalProcess->SUPPORT_MM_TRAP_OLD_STATE;
 
-	// Prepare the Terminal Process state
+	// Set the new state address in D4
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_pc = (int)slmmhandler;
+	r4 = (int)&terminalProcess->SUPPORT_MM_TRAP_NEW_STATE;
+
+	// invoke SYS5
+	DO_SPECTRAPVEC();
+
+
+	// Prepare the 'real' Terminal Process state
 	state_t terminalProcessState;
-	terminalProcessState.s_sr.ps_s = 0;			// Supervisor Mode off
-	terminalProcessState.s_sr.ps_m = 1;			// Memory management on
-	terminalProcessState.s_sr.ps_int = 0;		// Interrupts on
-	terminalProcessState.s_sp = (int)(0x80000 + PAGESIZE * 31); // This is the virtual address to Segment 1 / Page desc 31 with the Bootcode
+	terminalProcessState.s_sr.ps_s = 0;										// Supervisor/Privileged Mode off
+	terminalProcessState.s_sr.ps_m = 1;										// Memory Management on
+	terminalProcessState.s_sr.ps_int = 0;									// Interrupts on
+	terminalProcessState.s_pc = (int)(0x80000 + PAGESIZE * 31);				// This is the virtual address to Segment 1 / Page desc 31 with the Bootcode
+	terminalProcessState.s_r[7] = term_idx;									// Pass the terminal process index in D7 (TODO ASK HWO WE DO THIS)
+	terminalProcessState.s_sp = priviligedTerminalProcessState.s_sp;		// Set the stack pointer to the correct Tsysstack[term]
+	terminalProcessState.s_crp = priviligedTerminalProcessState.s_crp;		// Set the CPU Root Pointer to the correcte T process's segment table
 
-	// Load the Terminal Process
+	// Load the 'real' Terminal Process
 	LDST(&terminalProcessState);
 }
 
@@ -509,7 +514,17 @@ void static tprocess()
 */
 void static slmmhandler()
 {
+	// A Terminal Process requests more pages for Segment 1 (User/Private data)
+	// However since all Pages presence bits are off (0) initially, a Memory Managment Trap is thrown
 
+	// Get the Terminal Process state when the Trap was thrown
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+
+	// Get the Terminal Process and prepare
+	int term_idx = SYS_TRAP_OLD_STATE->s_r[7];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
+
+	// Assuming the Term number gets given to me, Segment number, and Page Descriptor Entry TODO ASK
 }
 
 /*
@@ -517,11 +532,44 @@ void static slmmhandler()
 */
 void static slsyshandler()
 {
+	// Execution Flow:
+	//  For User System Calls (SYS9-SYS17), virtual addresses are used which won't work with nucleus. 
+	//  These will pass up these up to Support which will be able to handle the virtual addresses
+	//
+	//  - A T-process executes a SYS instruction using a virtual address, causing a Trap (e.g., for I/O or delay).
+	//	- The trap is handled by the nucleus by trapsyshandler(), which saves the T-process's state in the SYS TRAP OLD AREA and then calls trapsysdefault()
+	//	- If the process has previously executed a SYS5 to install a trap vector :
+	//    -> The nucleus loads the "new state" from the SYS5 in trapsysdefault() - which will have the PC to syshandler()
+	//	  -> Control is then transferred to this function (slsyshandler) in privileged mode.
+	//	- This function then looks at the syscall number and dispatches to the appropriate handler.
 
+	// Get the Terminal Process state when the Trap was thrown
+	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+
+    switch (SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no) {
+        case (9):
+			readfromterminal();
+            break;
+        case (10):
+			writefromterminal();
+            break;
+        case (13):
+			delay();
+            break;
+        case (16):
+			gettimeofday();
+            break;
+        case (17):
+			terminate();
+            break;
+        default:
+			HALT(); // TODO ASK
+            break;
+    }
 }
 
 /*
-	This functions calls terminate()
+	This functions calls terminate() when a Program Trap occurs.
 */
 void static slproghandler()
 {
