@@ -60,8 +60,8 @@
 #define KERNEL_PAGES 256
 
 // Kernel Routines
-#define DO_CREATEPROC  SYS3;
-#define DO_SPECTRAPVEC SYS5;
+#define DO_CREATEPROC  SYS3
+#define DO_SPECTRAPVEC SYS5
 
 // Global CPU registers
 register int r2 asm("%d2");
@@ -358,8 +358,8 @@ void p1()
 	p1aState.s_pc = (int)p1a;		// Set program counter to p1a routine
 	p1aState.s_sp = Scronstack;		// Set the stack pointer to the Cron deamon stack address in the Stack's segment
 
-    // CPU Root Pointer will point to the Kernel Mode Segment Descriptor Table of the Cron Proc so the MMU knows where to read data from physical memory
-	p1aState.s_crp = &system_cron_process.kernel_mode_sd_table;
+	// Set CPU Root Pointer to the (only) Kernel Mode Segment Table of the Cron daemon
+	p1aState.s_crp = &system_cron_process.kernel_mode_sd_table;		
 
 	// Load p1a process
 	LDST(&p1a);
@@ -390,7 +390,7 @@ void static p1a()
 		// Prepare the initial process state for each T-process using the 'generic' process state declared above
 		runnable_process_t* terminalProcess = &terminal_processes[i];
 
-		// The CPU Root Pointer points to the User Mode Segment Table, used by the MMU to translate VA to PA
+		// Set CPU Root Pointer to the User Mode Segment Table
 		privilegedProcessState.s_crp = terminalProcess->user_mode_sd_table;
 
 		// Set the Stack pointer to the correct SYS Trap Stack
@@ -443,7 +443,7 @@ void static tprocess()
 	// Store the privileged T-Process state (added to the RQ via CREATEPROC) which invoked this routine
 	STST(&priviligedTerminalProcessState);
 
-	// Prepare the correct Terminal Process state to run
+	// Get the corresponding Terminal Process for the Trap State Vector setup
 	int term_idx = priviligedTerminalProcessState.s_r[4];
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
@@ -521,7 +521,6 @@ void static tprocess()
 	// Run the 'real' Terminal Process
 	LDST(&terminalProcessState);
 }
-
 
 
 /*
