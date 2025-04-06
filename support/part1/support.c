@@ -223,42 +223,42 @@ void p1()
 
 		int pgFrame;
 		for (pgFrame = 0; pgFrame < KERNEL_PAGES; pgFrame++) {
-			pd_t* kernelModePageTable = terminalProcess->kernel_mode_pd_table;
+			pd_t* kernelPageTable = terminalProcess->kernel_mode_pd_table;
 
 			// Each page descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
-			kernelModePageTable[pgFrame].pd_frame = pgFrame;
+			kernelPageTable[pgFrame].pd_frame = pgFrame;
 
 			// Check if this page frame corresponds to SEG0 (Page 2), if so set presence bit ON
 			if (pgFrame == 2) {
-				kernelModePageTable[pgFrame].pd_p = 1;	// Mark page frame as present
+				kernelPageTable[pgFrame].pd_p = 1;	// Mark page frame as present
 			}
 			// Check if this page frame corresponds to the DEVICE REGISTERS AREA
 			else if (pgFrame >= START_DEVICE_REG && pgFrame <= END_DEVICE_REG) {
-				kernelModePageTable[pgFrame].pd_p = 1;  // Mark page frame as present
+				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to SUPPORT TEXT
 			else if (pgFrame >= START_SUPPORT_TEXT && pgFrame <= END_SUPPORT_TEXT) {
-				kernelModePageTable[pgFrame].pd_p = 1;
+				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to SUPPORT DATA
 			else if (pgFrame >= START_SUPPORT_DATA && pgFrame <= END_SUPPORT_DATA) {
-				kernelModePageTable[pgFrame].pd_p = 1;
+				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to SUPPORT BSS
 			else if (pgFrame >= START_SUPPORT_BSS && pgFrame <= END_SUPPORT_BSS) {
-				kernelModePageTable[pgFrame].pd_p = 1;
+				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to the T-SYSSTACK
 			else if (pgFrame >= ((int)Tsysstack[i] / PAGESIZE) && pgFrame <= (((int)end / PAGESIZE) + (4 + i))) {
-				kernelModePageTable[pgFrame].pd_p = 1;
+				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to the T-MMSTACK
 			else if (pgFrame >= ((int)Tmmstack[i] / PAGESIZE) && pgFrame <= (((int)end / PAGESIZE) + (8 + i))) {
-				kernelModePageTable[pgFrame].pd_p = 1;
+				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Otherwise this page frame corresponds to another memory segment we cannot provide access to initially, so page frame as not present
 			else { 
-				kernelModePageTable[pgFrame].pd_p = 0;	
+				kernelPageTable[pgFrame].pd_p = 0;
 			}
 		}
 	}
@@ -283,34 +283,34 @@ void p1()
 	// Initialize the Kernel Page Descriptor Table for Segment 0 of the Cron's Privileged Mode Segment Table
 	int pgFrame;
 	for (pgFrame = 0; pgFrame < KERNEL_PAGES; pgFrame++) {
-		pd_t* kernelModePageTable = system_cron_process.kernel_mode_pd_table;
+		pd_t* kernelPageTable = system_cron_process.kernel_mode_pd_table;
 
 		// Each page descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
-		kernelModePageTable[pgFrame].pd_frame = pgFrame;
+		kernelPageTable[pgFrame].pd_frame = pgFrame;
 
 		// Check if this page frame corresponds to SEG0 (Page 2), if so set presence bit ON
 		if (pgFrame == 2) {
-			kernelModePageTable[pgFrame].pd_p = 1;
+			kernelPageTable[pgFrame].pd_p = 1;		// Mark page frame as present
 		}
 		// Check if this page frame corresponds to SUPPORT TEXT
 		else if (pgFrame >= START_SUPPORT_TEXT && pgFrame <= END_SUPPORT_TEXT) {
-			kernelModePageTable[pgFrame].pd_p = 1;
+			kernelPageTable[pgFrame].pd_p = 1;
 		}
 		// Check if this page frame corresponds to SUPPORT DATA
 		else if (pgFrame >= START_SUPPORT_DATA && pgFrame <= END_SUPPORT_DATA) {
-			kernelModePageTable[pgFrame].pd_p = 1;
+			kernelPageTable[pgFrame].pd_p = 1;
 		}
 		// Check if this page frame corresponds to SUPPORT BSS
 		else if (pgFrame >= START_SUPPORT_BSS && pgFrame <= END_SUPPORT_BSS) {
-			kernelModePageTable[pgFrame].pd_p = 1;
+			kernelPageTable[pgFrame].pd_p = 1;
 		}
 		// Check if this page frame corresponds to the SCRONSTACK
 		else if (pgFrame >= (Scronstack / PAGESIZE) && pgFrame <= (((int)end / PAGESIZE) + 14)) {
-			kernelModePageTable[pgFrame].pd_p = 1;
+			kernelPageTable[pgFrame].pd_p = 1;
 		}
 		// Otherwise this page frame corresponds to another memory segment we cannot provide access to initially, so page frame as not present
 		else {
-			kernelModePageTable[pgFrame].pd_p = 0;
+			kernelPageTable[pgFrame].pd_p = 0;
 		}
 	}
 
@@ -354,7 +354,7 @@ void p1()
 	state_t p1aState;
 	p1aState.s_sr.ps_s = 1;			// Supervisor/Privilege mode on
 	p1aState.s_sr.ps_m = 1;			// Memory management on
-	p1aState.s_sr.ps_int = 0;		// Interrupts on
+	p1aState.s_sr.ps_int = 1;		// Interrupts on
 	p1aState.s_pc = (int)p1a;		// Set program counter to p1a routine
 	p1aState.s_sp = Scronstack;		// Set the stack pointer to the Cron deamon stack address in the Stack's segment
 
@@ -381,9 +381,9 @@ void p1()
 */
 void static p1a() 
 {
+	// TODO START ASKING HERE
 	// Create a 'generic' process state that is privileged that will enable the set up of the Trap Areas for each T-process via SYS5
 	state_t privilegedProcessState;
-	privilegedProcessState.s_sr.ps_s = 1;		// Set Supervisor/Privilege Mode on
 
 	int i;
 	for (i = 0; i < T_PROCESS_COUNT; i++) {
@@ -396,14 +396,18 @@ void static p1a()
 		// Set the Stack pointer to the correct SYS Trap Stack
 		privilegedProcessState.s_sp = Tsysstack[i];
 
-		// TODO NECESSARY AND IF SO ASK HOW DO WE DIFFERENTIATE EACH TERM PROC?
 		// Set program counter to tprocess() to specify the process's Trap Areas
 		privilegedProcessState.s_pc = (int)tprocess;
 
-		// Pass the terminal process identifier
-		privilegedProcessState.s_r[7] = i;
+		// Pass the terminal process identifier in D4 of the child process state
+		privilegedProcessState.s_r[4] = i;
 
-		// Set the initial process state in System Old Trap Area register 'd4'
+		// Turn on Supervisor mode, Interrupts and Memory Management
+		privilegedProcessState.s_sr.ps_s = 1;		
+		privilegedProcessState.s_sr.ps_m = 1;
+		privilegedProcessState.s_sr.ps_int = 1;
+
+		// Reference the initial process state address in System Old Trap Area register 'D4'
 		r4 = (int)&privilegedProcessState;
 
 		// Create terminal process and add it to Run Queue
@@ -436,68 +440,85 @@ void static tprocess()
 	// Each T-process needs to initialize the memory locations of these areas for each Trap Type
 	state_t priviligedTerminalProcessState;
 
-	// Store the privileged Perminal Process state (added to the RQ via CREATEPROC) which invoked this routine
+	// Store the privileged T-Process state (added to the RQ via CREATEPROC) which invoked this routine
 	STST(&priviligedTerminalProcessState);
 
 	// Prepare the correct Terminal Process state to run
-	int term_idx = priviligedTerminalProcessState.s_r[7];
+	int term_idx = priviligedTerminalProcessState.s_r[4];
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
 
-	// Specify System Trap Areas
+	/*** Specify System Trap Areas ***/
 	r2 = SYSTRAP;
 
 	// Set the old state address in D3
 	r3 = (int)&terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE;
 
-	// TODO slides say d4 will have the terminal number!!!???
-	// Set the new state address in D4
+	// Set up the new state pointed at by D4 with Privilege, Interrupts and Memory Mangement modes ON
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sr.ps_s = 1;
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sr.ps_m = 1;
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sr.ps_int = 1;
 	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_pc = (int)slsyshandler;
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sp = Tsysstack[term_idx];
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
 	r4 = (int)&terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE;
 
 	// invoke SYS5
 	DO_SPECTRAPVEC();
 
 
-	// Specify Program Trap Areas
+	/*** Specify Program Trap Areas ***/
 	r2 = PROGTRAP;
 
 	// Set the old state address in D3
 	r3 = (int)&terminalProcess->SUPPORT_PROG_TRAP_OLD_STATE;
 
-	// Set the new state address in D4
+	// Set up the new state pointed at by D4 with Privilege, Interrupts and Memory Mangement modes ON
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sr.ps_s = 1;
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sr.ps_m = 1;
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sr.ps_int = 1;
 	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_pc = (int)slproghandler;
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sp = Tsysstack[term_idx];
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
 	r4 = (int)&terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE;
 
 	// invoke SYS5
 	DO_SPECTRAPVEC();
 
 
-	// Specify Memory Management Trap Areas
+	/*** Specify Memory Management Trap Areas ***/
 	r2 = MMTRAP;
 
 	// Set the old state address in D3
 	r3 = (int)&terminalProcess->SUPPORT_MM_TRAP_OLD_STATE;
 
-	// Set the new state address in D4
+	// Set up the new state pointed at by D4 with Privilege, Interrupts, and Memory Mangement modes ON
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_s = 1;
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_m = 1;
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_int = 1;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_pc = (int)slmmhandler;
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sp = Tmmstack[term_idx];
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
 	r4 = (int)&terminalProcess->SUPPORT_MM_TRAP_NEW_STATE;
 
 	// invoke SYS5
 	DO_SPECTRAPVEC();
 
 
-	// Prepare the 'real' Terminal Process state
+	/*** Prepare the 'real' Terminal Process State ***/
 	state_t terminalProcessState;
 	terminalProcessState.s_sr.ps_s = 0;										// Supervisor/Privileged Mode off
 	terminalProcessState.s_sr.ps_m = 1;										// Memory Management on
-	terminalProcessState.s_sr.ps_int = 0;									// Interrupts on
-	terminalProcessState.s_pc = (int)(0x80000 + PAGESIZE * 31);				// This is the virtual address to Segment 1 / Page desc 31 with the Bootcode
-	terminalProcessState.s_r[7] = term_idx;									// Pass the terminal process index in D7 (TODO ASK HWO WE DO THIS)
-	terminalProcessState.s_sp = priviligedTerminalProcessState.s_sp;		// Set the stack pointer to the correct Tsysstack[term]
-	terminalProcessState.s_crp = priviligedTerminalProcessState.s_crp;		// Set the CPU Root Pointer to the correcte T process's segment table
+	terminalProcessState.s_sr.ps_int = 1;									// Interrupts on
+	terminalProcessState.s_r[4] = term_idx;									// Pass the terminal process index in D7 (TODO ASK HWO WE DO THIS)
+	terminalProcessState.s_crp = terminalProcess->user_mode_sd_table;		// Set the CPU Root Pointer to the correct T process's segment table
+	
+	// Set the terminal process's private memory location in virtual memory. 
+	// The user stack is at the top of Segment 1 (in virtual memory), right above the bootcode!
+	terminalProcessState.s_pc = (int)(0x80000 + PAGESIZE * 31);				// Bootcode location in Virtual memory
+	terminalProcessState.s_sp = (int)(0x80000 + PAGESIZE * 32);				// User stack location in Virtual memory
 
-	// Load the 'real' Terminal Process
+	// Run the 'real' Terminal Process
 	LDST(&terminalProcessState);
 }
 
@@ -524,8 +545,38 @@ void static slmmhandler()
 	int term_idx = SYS_TRAP_OLD_STATE->s_r[7];
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
-	// Assuming the Term number gets given to me, Segment number, and Page Descriptor Entry TODO ASK
+	// Assuming the Term number gets given to me, Segment number/entry, and Page Descriptor Entry TODO ASK
+	int pageNumber = 0;
+
+	// Check the type of Memory Management Trap type
+	sd_t segmentDesc = terminalProcess->user_mode_sd_table[1];
+
+	// Get the exact Page Descriptor entry if possible TODO ASK
+	pd_t* pageDesc = (pd_t*)segmentDesc.sd_pta + pageNumber;
+
+	if (segmentDesc.sd_p == 0) { 
+		// Segment Missing
+	}
+
+	// Check whether Page # is greater than sd_len since the Page Desc Entry is calculated with sd.PTA + Page #
+	else if (segmentDesc.sd_len) {
+		// Invalid Page Number
+	}
+
+	// Check if the current operations is permitted via the protection bits in Sd
+	else if (segmentDesc.sd_prot) {
+		// Access Protection Violation, sd.R or sd.W or sd.E is 0
+	}
+
+	// The Page is missing / its presence bit is OFF
+	else if (pageDesc->pd_p == 0) {
+		// Allocate a free Page Frame for this Page Descriptor and mark it as present
+		pageDesc->pd_frame = getfreeframe();
+		pageDesc->pd_p = 1; 
+		// Zero/initialize data isnt necessary as it will get overwritten when used
+	}
 }
+
 
 /*
 	This function has a switch statement and it calls the functions in slsyscall1.c and slsyscall2.c
@@ -567,6 +618,7 @@ void static slsyshandler()
             break;
     }
 }
+
 
 /*
 	This functions calls terminate() when a Program Trap occurs.
