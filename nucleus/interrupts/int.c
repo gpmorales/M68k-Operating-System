@@ -438,12 +438,11 @@ void static intfloppyhandler()
 */
 void myprint(char* msg)
 {
-    // Get printer0's device register from memory
-    devreg_t* printer0 = deviceRegisters[5];
+    devreg_t* printer0 = deviceRegisters[5];     // Get printer0's device register from memory
     printer0->d_stat = DEVNOTREADY;              // Set status code to non 0 value as we prepare to request I/O
-    printer0->d_dadd = strlen(msg);     // For printer, the length of data
-    printer0->d_badd = msg;             // Buffer address has the pointer to the data we are handing to device
-    printer0->d_op = IOWRITE;           // Set the device operation status to WRITE
+    printer0->d_dadd = strlen(msg);              // For printer, the length of data
+    printer0->d_badd = msg;                      // Buffer address has the pointer to the data we are handing to device
+    printer0->d_op = IOWRITE;                    // Set the device operation status to WRITE
 
     // 'Block' until operation is done
     while (printer0->d_stat != NORMAL);
@@ -477,7 +476,7 @@ void intinit()
     state_t* TERM_INTERRUPT_NEW_STATE = (state_t*)TERM_INTERRUPT_OLD_STATE + 1;
     TERM_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
     TERM_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                        // Set Supervisor Bit
-    TERM_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                      // Interrupt priority disabled
+    TERM_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                      // Interrupt Priority disabled
     TERM_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
     TERM_INTERRUPT_NEW_STATE->s_pc = (int)intterminalhandler;	                    // The address for this device's specific handler
 
@@ -485,7 +484,7 @@ void intinit()
     state_t* PRINTER_INTERRUPT_NEW_STATE = (state_t*)PRINTER_INTERRUPT_OLD_STATE+ 1;
     PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
     PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
-    PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                   // Interrupt priority disabled
+    PRINTER_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                   // Interrupt Priority disabled
     PRINTER_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                // Set the global stack pointer to the top, where the Kernel memory is allocated
     PRINTER_INTERRUPT_NEW_STATE->s_pc = (int)intprinterhandler;    	                // The address for this specific handler
 
@@ -493,7 +492,7 @@ void intinit()
     state_t* DISK_INTERRUPT_NEW_STATE = (state_t*)DISK_INTERRUPT_OLD_STATE + 1;
     DISK_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
     DISK_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                        // Set Supervisor Bit
-    DISK_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                      // Interrupt priority disabled
+    DISK_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                      // Interrupt Priority disabled
     DISK_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
     DISK_INTERRUPT_NEW_STATE->s_pc = (int)intdiskhandler;       	                // The address for this specific handler
 
@@ -501,7 +500,7 @@ void intinit()
     state_t* FLOPPY_INTERRUPT_NEW_STATE= (state_t*)FLOPPY_INTERRUPT_OLD_STATE + 1;
     FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
     FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
-    FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                    // Interrupt priority disabled
+    FLOPPY_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                    // Interrupt Priority disabled
     FLOPPY_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                // Set the global stack pointer to the top, where the Kernel memory is allocated
     FLOPPY_INTERRUPT_NEW_STATE->s_pc = (int)intfloppyhandler;	                    // The address for this specific handler
 
@@ -509,7 +508,7 @@ void intinit()
     state_t* CLOCK_INTERRUPT_NEW_STATE = (state_t*)CLOCK_INTERRUPT_OLD_STATE + 1;
     CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_m = 0;	 				                    // Set memory management to physical addressing (no process virtualization)
     CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_s = 1;   				                    // Set Supervisor Bit
-    CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                     // Interrupt priority disabled
+    CLOCK_INTERRUPT_NEW_STATE->s_sr.ps_int = 7;                                     // Interrupt Priority disabled
     CLOCK_INTERRUPT_NEW_STATE->s_sp = MEMSTART;					                    // Set the global stack pointer to the top, where the Kernel memory is allocated
     CLOCK_INTERRUPT_NEW_STATE->s_pc = (int)intclockhandler;		                    // The address for this specific handler
 }

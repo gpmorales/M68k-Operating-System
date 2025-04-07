@@ -17,3 +17,5 @@
 #define SEG0            0x000000
 #define SEG1            0x080000
 #define SEG2            0x100000
+
+#define MAXTPROC 2

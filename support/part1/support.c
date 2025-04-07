@@ -4,8 +4,10 @@
 */
 #include "../../h/const.h"
 #include "../../h/types.h"
+#include "../../h/vpop.h"
 #include "../../h/procq.e"
 #include "../../h/asl.e"
+#include "./h/tconst.h"
 
 /*
 	This module coordinates the initalization of the support level, it services traps that are passed up, and it creates any necessary system processes.
@@ -56,19 +58,19 @@
 */
 
 // Stored in support level data (PA)
-#define T_PROCESS_COUNT 2
 #define KERNEL_PAGES 256
 
 // Kernel Routines
-#define DO_CREATEPROC  SYS3
-#define DO_SPECTRAPVEC SYS5
+#define DO_CREATEPROC		SYS3
+#define DO_SPECTRAPVEC		SYS5
+#define	DO_WAITCLOCK		SYS7	/* delay on the clock semaphore */
 
 // Global CPU registers
 register int r2 asm("%d2");
 register int r3 asm("%d3");
 register int r4 asm("%d4");
 
-// boot strap loader object code
+// Bootstrap loader object code
 int bootcode[] = {
 	0x41f90008,
 	0x00002608,
@@ -117,8 +119,8 @@ typedef struct runnable_process_t {
 	sd_t user_mode_sd_table[32];		// Uses Segment Entry 1, 2. Segment 1 manages the user private pages (code, data, stack) for that process & Segmenet 2 manages shared pages
 	sd_t kernel_mode_sd_table[32];		// Uses Segment Entry 0, 1, 2. Segment 0 maps pages for Support data, text, bss, & handler (restricted, requires privilege mode)
 
-	pd_t user_mode_pd_table[32];		// The Page Table for Segment Entry 1 (user/private pages)
-	pd_t kernel_mode_pd_table[256];		// The Page Table for Segment Entry 0 (kernel pages)
+	pd_t user_mode_pd_table[32];					// The Page Table for Segment Entry 1 (user/private pages)
+	pd_t kernel_mode_pd_table[KERNEL_PAGES];		// The Page Table for Segment Entry 0 (kernel pages)
 
 	// Init states to point to the correspoinding function handlers, set MM on, and set the Stack (pg. 14)
 	state_t SUPPORT_SYS_TRAP_OLD_STATE;
@@ -137,10 +139,29 @@ typedef struct runnable_process_t {
 } runnable_process_t;
 
 // Terminal Process Table
-const runnable_process_t terminal_processes[2];
+const runnable_process_t terminal_processes[MAXTPROC];
 
-// Cron Daemon/Systemn Process
+
+// Cron Daemon process, struct, semaphores, and fields
 runnable_process_t system_cron_process;
+
+typedef struct cron_entry_t {
+	int semaphore;			
+	long wakeuptime;
+} cron_entry_t;
+
+
+// Cron Table
+cron_entry_t CRON_TABLE[MAXTPROC];
+
+// Cron table semaphore
+int cron_table_sem = 1;
+
+// Semaphore for exclusive access to Cron routine
+int wake_up_cron_sem = 0;
+
+// Misc TODO ASK
+int active_t_processes = MAXTPROC;
 
 
 /*
@@ -153,13 +174,23 @@ runnable_process_t system_cron_process;
 */
 void p1()
 {
+	// Pageinit() initialize Stack pointers: Tsysstack[i], Tmmstack[i], Scronstack, Spagedstack, Sdiskstack
+	// It also ensures that we can allocate frames via getfreeframe() by marking USUABLE physical pages
+
+	// RECALL: Multiple T-processes can enter the support level concurrently via SYS traps, 
+	// or MM traps that are handled using the memory space of page frames mapped by Segment 0 (Nucleus data)
+	// If these processes share the same stack space, concurrent modifications would occur overwriting crucial data
+	// Hence each T-process will get a SYS Trap stack -> Tsysstack[i] and a MM Trap stack -> Tmmstack[i]
+	pageinit();
+
 
 	// ** Initialize Each Terminal Process with a User and Privileged Mode Segment Table **
 	int i, j, k;
-	for (i = 0; i < T_PROCESS_COUNT; i++) {
+	for (i = 0; i < MAXTPROC; i++) {
 		runnable_process_t* terminalProcess = &terminal_processes[i];
 
 		// User Mode Segment Table only has 2 Segments for the user's private pages (Segment 1) and globally shared pages (Segment 2)
+		terminalProcess->user_mode_sd_table[1].sd_pta = terminalProcess->user_mode_pd_table;
 		terminalProcess->user_mode_sd_table[1].sd_pta = terminalProcess->user_mode_pd_table;
 		terminalProcess->user_mode_sd_table[2].sd_pta = shared_pd_table;
 		
@@ -186,7 +217,7 @@ void p1()
 		// Init Segment 0, 1, 2 of the Kernel Mode Segment Table with Presence bit, Access Protection bits, and Page Table length
 		terminalProcess->kernel_mode_sd_table[0].sd_p = 1;
 		terminalProcess->kernel_mode_sd_table[0].sd_prot = 7;
-		terminalProcess->kernel_mode_sd_table[0].sd_len = 32;
+		terminalProcess->kernel_mode_sd_table[0].sd_len = KERNEL_PAGES;
 
 		terminalProcess->kernel_mode_sd_table[1].sd_p = 1;
 		terminalProcess->kernel_mode_sd_table[1].sd_prot = 7;
@@ -249,14 +280,14 @@ void p1()
 				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to the T-SYSSTACK
-			else if (pgFrame >= ((int)Tsysstack[i] / PAGESIZE) && pgFrame <= (((int)end / PAGESIZE) + (4 + i))) {
+			else if (pgFrame == ((int)Tsysstack[i] / PAGESIZE)) {
 				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to the T-MMSTACK
-			else if (pgFrame >= ((int)Tmmstack[i] / PAGESIZE) && pgFrame <= (((int)end / PAGESIZE) + (8 + i))) {
+			else if (pgFrame == ((int)Tmmstack[i] / PAGESIZE)) {
 				kernelPageTable[pgFrame].pd_p = 1;
 			}
-			// Otherwise this page frame corresponds to another memory segment we cannot provide access to initially, so page frame as not present
+			// Otherwise this page frame corresponds to another memory segment we cannot provide access to initially, so Page Frame as not present
 			else { 
 				kernelPageTable[pgFrame].pd_p = 0;
 			}
@@ -273,7 +304,7 @@ void p1()
 	// Init Segment 0 of the Privileged Mode Segment Table with Presence bit, Access Protection bits, and Page Table length
 	system_cron_process.kernel_mode_sd_table[0].sd_p = 1;
 	system_cron_process.kernel_mode_sd_table[0].sd_prot = 7;
-	system_cron_process.kernel_mode_sd_table[0].sd_len = 32;
+	system_cron_process.kernel_mode_sd_table[0].sd_len = KERNEL_PAGES;
 
 	// Set the presence bit off for all other segments in the Privileged Mode Segment Table
 	for (i = 1; i < 32; i++) {
@@ -285,12 +316,12 @@ void p1()
 	for (pgFrame = 0; pgFrame < KERNEL_PAGES; pgFrame++) {
 		pd_t* kernelPageTable = system_cron_process.kernel_mode_pd_table;
 
-		// Each page descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
+		// Each Page Descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
 		kernelPageTable[pgFrame].pd_frame = pgFrame;
 
 		// Check if this page frame corresponds to SEG0 (Page 2), if so set presence bit ON
 		if (pgFrame == 2) {
-			kernelPageTable[pgFrame].pd_p = 1;		// Mark page frame as present
+			kernelPageTable[pgFrame].pd_p = 1;	// Mark page frame as present
 		}
 		// Check if this page frame corresponds to SUPPORT TEXT
 		else if (pgFrame >= START_SUPPORT_TEXT && pgFrame <= END_SUPPORT_TEXT) {
@@ -315,19 +346,10 @@ void p1()
 	}
 
 
-	// Pageinit() initialize Stack pointers: Tsysstack[i], Tmmstack[i], Scronstack, Spagedstack, Sdiskstack
-	// It also ensures that we can allocate frames via getfreeframe() by marking USUABLE physical pages
-
-	// RECALL: Multiple T-processes can enter the support level concurrently via SYS traps, 
-	// or MM traps that are handled using the memory space of page frames mapped by Segment 0 (Nucleus data)
-	// If these processes share the same stack space, concurrent modifications would occur overwriting crucial data
-	// Hence each T-process will get a SYS Trap stack -> Tsysstack[i] and a MM Trap stack -> Tmmstack[i]
-	pageinit();
-
 	// Allocate page 31 in each T-process's user-mode page table (Segment 1) to load the bootcode.
 	// The bootcode initializes the user program by setting up trap vectors (SYS5s) 
 	// and then transfers control to the actual user code.
-	for (i = 0; i < T_PROCESS_COUNT; i++) {
+	for (i = 0; i < MAXTPROC; i++) {
 		runnable_process_t* terminalProcess = &terminal_processes[i];
 
 		// Get the User Mode Page Table (maps Segment 1) of this Terminal Process
@@ -343,18 +365,25 @@ void p1()
 		userPageTable[31].pd_frame = getfreeframe(i, 31, 1);
 
 		// Load the boot code into this Page Frame by using physical address
-		int* pageStart = (int*) (userPageTable[31].pd_frame * PAGESIZE);
+		int* pageStart = (int*)(userPageTable[31].pd_frame * PAGESIZE);
 		int j;
 		for (j = 0; j < 10; j++) {
 			*(pageStart + j) = bootcode[j];
 		}
 	}
 
+	// Initialize Cron Table semaphores and wake up times
+	int k;
+	for (k = 0; k < 20; k++) {
+		CRON_TABLE[k].semaphore = 0;	 // Process semaphore init to 0
+		CRON_TABLE[k].wakeuptime = -1;	 // Set Process wakeup time to -1 to signal no delay requested
+	}
+
 	// Create p1a process state
 	state_t p1aState;
 	p1aState.s_sr.ps_s = 1;			// Supervisor/Privilege mode on
 	p1aState.s_sr.ps_m = 1;			// Memory management on
-	p1aState.s_sr.ps_int = 1;		// Interrupts on
+	p1aState.s_sr.ps_int = 0;		// Interrupts on
 	p1aState.s_pc = (int)p1a;		// Set program counter to p1a routine
 	p1aState.s_sp = Scronstack;		// Set the stack pointer to the Cron deamon stack address in the Stack's segment
 
@@ -381,17 +410,16 @@ void p1()
 */
 void static p1a() 
 {
-	// TODO START ASKING HERE
 	// Create a 'generic' process state that is privileged that will enable the set up of the Trap Areas for each T-process via SYS5
 	state_t privilegedProcessState;
 
 	int i;
-	for (i = 0; i < T_PROCESS_COUNT; i++) {
+	for (i = 0; i < MAXTPROC; i++) {
 		// Prepare the initial process state for each T-process using the 'generic' process state declared above
 		runnable_process_t* terminalProcess = &terminal_processes[i];
 
-		// Set CPU Root Pointer to the User Mode Segment Table
-		privilegedProcessState.s_crp = terminalProcess->user_mode_sd_table;
+		// Set CPU Root Pointer to the process's Kernel Mode Segment Table
+		privilegedProcessState.s_crp = terminalProcess->kernel_mode_sd_table;
 
 		// Set the Stack pointer to the correct SYS Trap Stack
 		privilegedProcessState.s_sp = Tsysstack[i];
@@ -405,7 +433,7 @@ void static p1a()
 		// Turn on Supervisor mode, Interrupts and Memory Management
 		privilegedProcessState.s_sr.ps_s = 1;		
 		privilegedProcessState.s_sr.ps_m = 1;
-		privilegedProcessState.s_sr.ps_int = 1;
+		privilegedProcessState.s_sr.ps_int = 0;
 
 		// Reference the initial process state address in System Old Trap Area register 'D4'
 		r4 = (int)&privilegedProcessState;
@@ -420,8 +448,9 @@ void static p1a()
 	// Store the current state which has the proper memory managment and CRP set
 	STST(&cronProcessState);
 
-	// Set the program counter to the cron() function
+	// Set the program counter to the cron() function and reset stack pointer
 	cronProcessState.s_pc = (int)cron;
+	cronProcessState.s_sp = Scronstack;		
 
 	// Load the Cron 'Daemon' Process
 	LDST(&cronProcessState);
@@ -455,9 +484,10 @@ void static tprocess()
 	r3 = (int)&terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE;
 
 	// Set up the new state pointed at by D4 with Privilege, Interrupts and Memory Mangement modes ON
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_r[4] = term_idx;
 	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sr.ps_s = 1;
 	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sr.ps_m = 1;
-	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sr.ps_int = 1;
+	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sr.ps_int = 0;
 	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_pc = (int)slsyshandler;
 	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_sp = Tsysstack[term_idx];
 	terminalProcess->SUPPORT_SYS_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
@@ -474,9 +504,10 @@ void static tprocess()
 	r3 = (int)&terminalProcess->SUPPORT_PROG_TRAP_OLD_STATE;
 
 	// Set up the new state pointed at by D4 with Privilege, Interrupts and Memory Mangement modes ON
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_r[4] = term_idx;
 	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sr.ps_s = 1;
 	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sr.ps_m = 1;
-	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sr.ps_int = 1;
+	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sr.ps_int = 0;
 	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_pc = (int)slproghandler;
 	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_sp = Tsysstack[term_idx];
 	terminalProcess->SUPPORT_PROG_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
@@ -493,9 +524,10 @@ void static tprocess()
 	r3 = (int)&terminalProcess->SUPPORT_MM_TRAP_OLD_STATE;
 
 	// Set up the new state pointed at by D4 with Privilege, Interrupts, and Memory Mangement modes ON
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_r[4] = term_idx;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_s = 1;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_m = 1;
-	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_int = 1;
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_int = 0;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_pc = (int)slmmhandler;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sp = Tmmstack[term_idx];
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
@@ -509,14 +541,13 @@ void static tprocess()
 	state_t terminalProcessState;
 	terminalProcessState.s_sr.ps_s = 0;										// Supervisor/Privileged Mode off
 	terminalProcessState.s_sr.ps_m = 1;										// Memory Management on
-	terminalProcessState.s_sr.ps_int = 1;									// Interrupts on
-	terminalProcessState.s_r[4] = term_idx;									// Pass the terminal process index in D7 (TODO ASK HWO WE DO THIS)
+	terminalProcessState.s_sr.ps_int = 0;									// Interrupts on
 	terminalProcessState.s_crp = terminalProcess->user_mode_sd_table;		// Set the CPU Root Pointer to the correct T process's segment table
 	
 	// Set the terminal process's private memory location in virtual memory. 
 	// The user stack is at the top of Segment 1 (in virtual memory), right above the bootcode!
 	terminalProcessState.s_pc = (int)(0x80000 + PAGESIZE * 31);				// Bootcode location in Virtual memory
-	terminalProcessState.s_sp = (int)(0x80000 + PAGESIZE * 32);				// User stack location in Virtual memory
+	terminalProcessState.s_sp = (int)(0x80000 + PAGESIZE * 32) - 2;			// User stack location in Virtual memory
 
 	// Run the 'real' Terminal Process
 	LDST(&terminalProcessState);
@@ -537,42 +568,48 @@ void static slmmhandler()
 	// A Terminal Process requests more pages for Segment 1 (User/Private data)
 	// However since all Pages presence bits are off (0) initially, a Memory Managment Trap is thrown
 
-	// Get the Terminal Process state when the Trap was thrown
-	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+	// Get the Terminal Process State when the Trap was thrown
+	state_t terminal_mm_new_state;
+	STST(&terminal_mm_new_state);
 
-	// Get the Terminal Process and prepare
-	int term_idx = SYS_TRAP_OLD_STATE->s_r[7];
+	// Get the Terminal Process index from the CPU state
+	int term_idx = terminal_mm_new_state.s_r[4];
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
-	// Assuming the Term number gets given to me, Segment number/entry, and Page Descriptor Entry TODO ASK
-	int pageNumber = 0;
+	// Get the Segment number/entry and Page Number
+	tmp_t temp_mm = terminal_mm_new_state.s_tmp;
+	unsigned trapType = temp_mm.tmp_mm.mm_typ;
+	int pageNumber = temp_mm.tmp_mm.mm_pg;
+	int segmentNumber = temp_mm.tmp_mm.mm_seg;
 
-	// Check the type of Memory Management Trap type
-	sd_t segmentDesc = terminalProcess->user_mode_sd_table[1];
+	// Handle MM traps
+	if (trapType == PAGEMISS) {
+		// Only handle MM traps for Segment 1 and 2 for the User Segment Table
+		if (segmentNumber != 1 && segmentNumber != 2) { 
+			DO_TTERMINATE();
+		}
 
-	// Get the exact Page Descriptor entry if possible TODO ASK
-	pd_t* pageDesc = (pd_t*)segmentDesc.sd_pta + pageNumber;
+		// Get the Segment Descriptor entry 
+		sd_t segmentDesc = terminalProcess->user_mode_sd_table[segmentNumber];
 
-	if (segmentDesc.sd_p == 0) { 
-		// Segment Missing
-	}
+		// Check whether Page # is invalid if sd_len is smaller since the Page Entry is calculated with sd.PTA + Page #
+		if (pageNumber >= segmentDesc.sd_len) {
+			DO_TTERMINATE();
+		}
 
-	// Check whether Page # is greater than sd_len since the Page Desc Entry is calculated with sd.PTA + Page #
-	else if (segmentDesc.sd_len) {
-		// Invalid Page Number
-	}
+		// Get the exact Page Descriptor entry if Page number is valid
+		pd_t* pageDesc = &terminalProcess->user_mode_sd_table[segmentNumber].sd_pta[pageNumber];
 
-	// Check if the current operations is permitted via the protection bits in Sd
-	else if (segmentDesc.sd_prot) {
-		// Access Protection Violation, sd.R or sd.W or sd.E is 0
-	}
-
-	// The Page is missing / its presence bit is OFF
-	else if (pageDesc->pd_p == 0) {
 		// Allocate a free Page Frame for this Page Descriptor and mark it as present
 		pageDesc->pd_frame = getfreeframe();
 		pageDesc->pd_p = 1; 
-		// Zero/initialize data isnt necessary as it will get overwritten when used
+
+		// Zero/initialize data isn't necessary as it will get overwritten when used
+	}
+	else {
+		// Access Protection Violation, sd.R or sd.W or sd.E is 0
+		// The Segment is missing / Page number is invalid
+		DO_TTERMINATE();
 	}
 }
 
@@ -630,12 +667,50 @@ void static slproghandler()
 
 /*
 	Cron Daemon Routine:
-	This function releases processes which delayed themselves, and it shuts down if there are no T-processes running.
-	cron should be in an infinite loop and should block on the pseudoclock if there is no work
-	to be done. If possible you should synchronize delay and cron, otherwise one point will be lost
+	This function releases processes which delayed themselves, and it shuts down if there are no
+	T-processes running. cron should be in an infinite loop and should block on the pseudoclock if there 
+	is no work to be done. If possible you should synchronize delay and cron, otherwise one point will be lost
 */
 void static cron()
 {
+	// Block the Cron process unconditionally once (In the future, the PC is maintainted preventing a deadlock)
+	vpop semOperation;
+	semOperation.op = LOCK;
+	semOperation.sem = &wake_up_cron_sem;
+	r4 = (int)&semOperation;
+	DO_SEMOP();
+
+	// Critical section where Cron job updates wakeup times and
+	while (1) {
+		if (active_t_processes == 0) {
+			DO_TTERMINATE();
+		}
+
+		// Allow only 1 process to capture semaphore
+		vpop tableOperation;
+		tableOperation.op = LOCK;
+		tableOperation.sem = &cron_table_sem;
+		r4 = (int)&tableOperation;
+		DO_SEMOP();
+
+		// Check if there are any T-processes being delayed
+		int delayedProcesses = FALSE;
+
+		int i;
+		for (i = 0; i < MAXTPROC; i++) {
+			if (CRON_TABLE[i].semaphore < 0) {
+				delayedProcesses = TRUE;
+				break;
+			}
+		}
+
+		// There are no delayed processes we could possibly release, block ourselves
+		if (!delayedProcesses) {
+			DO_WAITCLOCK();
+		}
+	}
+
+	// If there are processes to that are being delayed 
 
 }
 
