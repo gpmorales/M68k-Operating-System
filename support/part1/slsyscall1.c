@@ -2,6 +2,7 @@
     This code is my own work, it was written without consulting code written by other students current or previous or using any AI tools
     George Morales
 */
+#include <string.h>
 #include "../../h/const.h"
 #include "../../h/types.h"
 #include "../../h/vpop.h"
@@ -12,6 +13,7 @@
 
 // Kernel Routines
 #define DO_SEMOP			SYS1
+#define	DO_WAITIO			SYS8	/* delay on a io semaphore */
 
 // Global CPU registers
 register int r2 asm("%d2");
@@ -34,6 +36,8 @@ typedef struct runnable_process_t {
 	state_t SUPPORT_MM_TRAP_OLD_STATE;
 	state_t SUPPORT_MM_TRAP_NEW_STATE;
 
+	// IO devices can only handle Physical Addresses
+	// SYS10 (wrt to terminal) -> copy data from VA to PA/iobuffer -> call devreg on iobuffer -> waitforio by passing addresses to this field
 	char io_buffer[512];
 } runnable_process_t;
 
@@ -65,8 +69,43 @@ extern int active_t_processes;
 */
 void readfromterminal()
 {
-	//
+	// Get the Terminal Process state and number in the loaded New State Area 
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
 
+	// Get the virtual address that will act as our buffer
+	char* virtualAddr = (char*)r3;
+
+	// Get the Terminal Process index from the CPU state
+	int term_idx = terminal_sys_new_state.s_r[4];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
+
+	// Make the read request to the correct terminal device
+    devreg_t* terminal = (devreg_t*)BEGINDEVREG + term_idx;		// Get printer0's device register from memory
+    terminal->d_stat = DEVNOTREADY;								// Set status code to non 0 value as we prepare to request I/O
+    terminal->d_dadd = 128;										// The size of the buffer (max 128 bytes)
+    terminal->d_badd = terminalProcess->io_buffer;				// Buffer address stores the data we read from input
+    terminal->d_op = IOREAD;									// Set the device operation status to READ (code 0)
+
+	// Block the process by calling waitforio
+	r4 = (int)&term_idx;
+	DO_WAITIO();
+
+
+	// Now the data has been stored in virtual address location and the operation is done
+	int terminalStatus = terminal->d_stat;
+	int length = terminal->d_dadd;
+
+	if (terminalStatus == NORMAL) {
+		// Copy the data from the phyiscal buffer to the virtual address if hte operation completed successfully
+		for (int i = 0; i < length; i++) {
+			virtualAddr[i] = terminalProcess->io_buffer[i];
+		}
+		r2 = length;
+	}
+	else {
+		r2 = -terminalStatus;
+	}
 }
 
 
@@ -110,7 +149,6 @@ void delay()
 	r4 = (int)&lockTableOperation;
 	DO_SEMOP();
 
-
 	// Get the Terminal Process index from the CPU state and update the Cron table
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
@@ -118,19 +156,18 @@ void delay()
 	int term_idx = terminal_sys_new_state.s_r[4];
 	CRON_TABLE[term_idx].wakeUpTime = wakeUpTime;
 
-	// Block the calling process on the delay
-	vpop lockProcessOperation;
-	lockProcessOperation.op = LOCK;
-	lockProcessOperation.sem = &CRON_TABLE[term_idx].sem;
-	r4 = (int)&lockProcessOperation;
-	DO_SEMOP();
-
-
 	// Unlock the Cron table semaphore
 	vpop unlockTableOperation;
 	unlockTableOperation.op = UNLOCK;
 	unlockTableOperation.sem = &cron_table_sem;
 	r4 = (int)&unlockTableOperation;
+	DO_SEMOP();
+
+	// Now we can block the calling process, after releasing the the Cron table semaphore
+	vpop lockProcessOperation;
+	lockProcessOperation.op = LOCK;
+	lockProcessOperation.sem = &CRON_TABLE[term_idx].sem;
+	r4 = (int)&lockProcessOperation;
 	DO_SEMOP();
 }
 
@@ -160,33 +197,27 @@ void terminate()
 	// Decrease the number of active T-processes
 	active_t_processes--;
 
-	// No active processes, the Cron daemon will never need to run again
+	// No active processes, no reason for nucleus or support routines to continue execution
 	if (active_t_processes == 0) {
 		HALT();
 	}
 
+	// TODO ASK
 	// Otherwise there are still active processes and we can free the Segments and Pages allocated to this T-process
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
+
 	int term_idx = terminal_sys_new_state.s_r[4];
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
-	// TODO ASK
-	sd_t* segmentOneDesc = &terminalProcess->user_mode_pd_table[1];
-	pd_t* userPageTable = segmentOneDesc->sd_pta;
+	// Free the pages from Segment 1 (User/Private data) 
+	pd_t* userPageTable = terminalProcess->user_mode_sd_table[1].sd_pta;
 
-	// Segment is not allocated anymore
-	segmentOneDesc->sd_p = 0;
-	segmentOneDesc->sd_pta = NULL;
-
-	// Free the pages in the User Space Page table
 	int i;
 	for (i = 0; i < 32; i++) {
-		userPageTable[i].pd_p = 0;
-		userPageTable[i].pd_frame = -1;
-		//userPageTable[i].
+		userPageTable[i].pd_p = 0;				// Set presence bit off
+		userPageTable[i].pd_frame = 0;			// Set the page frame # to 0 to indicate it is not in use
 	}
 
-	//putframe();
 	//DO_KILLPROC();
 }

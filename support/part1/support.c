@@ -187,7 +187,6 @@ void p1()
 
 		// User Mode Segment Table only has 2 Segments for the user's private pages (Segment 1) and globally shared pages (Segment 2)
 		terminalProcess->user_mode_sd_table[1].sd_pta = terminalProcess->user_mode_pd_table;
-		terminalProcess->user_mode_sd_table[1].sd_pta = terminalProcess->user_mode_pd_table;
 		terminalProcess->user_mode_sd_table[2].sd_pta = shared_pd_table;
 		
 		// Init Segment 1 & 2 of the User Mode Segment Table with Presence bit, Access Protection bits, and Page Table length
@@ -596,7 +595,7 @@ void static slmmhandler()
 		// Zero/initialize data isn't necessary as it will get overwritten when used
 	}
 	else {
-		// Access Protection Violation, sd.R or sd.W or sd.E is 0 OR The Segment is missing OR Page number is invalid
+		// Access Protection Violation, sd.R or sd.W or sd.E is 0 OR the Segment is missing OR Page number is invalid
 		DO_TTERMINATE();
 	}
 }
@@ -614,11 +613,11 @@ void static slsyshandler()
 	//  - A T-process executes a SYS instruction using a virtual address, causing a Trap (e.g., for I/O or delay).
 	//	- The trap is handled by the nucleus by trapsyshandler(), which saves the T-process's state in the SYS TRAP OLD AREA and then calls trapsysdefault()
 	//	- If the process has previously executed a SYS5 to install a trap vector :
-	//    -> The nucleus loads the "new state" from the SYS5 in trapsysdefault() - which will have the PC to syshandler() and the properties we defined in TPROCESS()
+	//    -> The nucleus loads the "New State" from the SYS5 in trapsysdefault() - which will have the PC to syshandler() and the properties we defined in TPROCESS()
 	//	  -> Control is then transferred to this function (slsyshandler) in privileged mode.
 	//	- This function then looks at the syscall number and dispatches to the appropriate handler.
 
-	// Get the Terminal Process state when the Trap was thrown
+	// Get the Terminal Process state and index in the loaded New State Area 
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
 
@@ -667,7 +666,7 @@ void static slproghandler()
 */
 void static cron()
 {
-	// Block the Cron process unconditionally once (In the future, the PC is maintained and the while loop below will prevent the execution of first SEMOP again)
+	// Block the Cron process once unconditionally (In the future, the PC is maintained and the while loop below will prevent the execution of first SEMOP again)
 	vpop lockCronOperation;
 	lockCronOperation.op = LOCK;
 	lockCronOperation.sem = &wake_up_cron_sem;
@@ -675,7 +674,7 @@ void static cron()
 	r4 = (int)&lockCronOperation;
 	DO_SEMOP();
 
-	// Critical section where Cron job releases sleeping process
+	// Critical section where Cron job releases sleeping/delayed process
 	while (1) {
 
 		// Terminate Cron if there are no t-processes running
@@ -698,13 +697,15 @@ void static cron()
 			// Check if this process can be released
 			long currentTime = DO_GETTOD();
 
-			// At least one process has been delayed
-			if (CRON_TABLE[i].wakeUpTime != -1) {
-				delayedProcesses = TRUE;
-			}
-
 			// Wake up this process if we have passed the wakeup time deadline
-			if (CRON_TABLE[i].wakeUpTime >= currentTime) {
+			if (CRON_TABLE[i].wakeUpTime != -1 && CRON_TABLE[i].wakeUpTime <= currentTime) {
+				// P the device semaphore via SYS1 and reset the wakeup time
+				CRON_TABLE[i].wakeUpTime = -1;
+
+				// At least one process has been delayed
+				delayedProcesses = TRUE;
+
+				// Prepare unlock/wakeup operation on delayed process
 				vpop wakeUpOperation;
 				wakeUpOperation.op = UNLOCK;
 				wakeUpOperation.sem = &CRON_TABLE[i].sem;
