@@ -4,14 +4,52 @@
 */
 #include "../../h/const.h"
 #include "../../h/types.h"
+#include "../../h/vpop.h"
 #include "../../h/procq.e"
 #include "../../h/asl.e"
+#include "./h/tconst.h"
 
 
-/*
-	This module handles some of the support level system calls.It has the following
-	functions: readfromterminal(), writetoterminal(), delay(), gettimeofday() and terminate().
-*/
+// Kernel Routines
+#define DO_SEMOP			SYS1
+
+// Global CPU registers
+register int r2 asm("%d2");
+register int r3 asm("%d3");
+register int r4 asm("%d4");
+
+#define KERNEL_PAGES 256
+
+typedef struct runnable_process_t {
+	sd_t user_mode_sd_table[32];		
+	sd_t kernel_mode_sd_table[32];	
+
+	pd_t user_mode_pd_table[32];					
+	pd_t kernel_mode_pd_table[KERNEL_PAGES];	
+
+	state_t SUPPORT_SYS_TRAP_OLD_STATE;
+	state_t SUPPORT_SYS_TRAP_NEW_STATE;
+	state_t SUPPORT_PROG_TRAP_OLD_STATE;
+	state_t SUPPORT_PROG_TRAP_NEW_STATE;
+	state_t SUPPORT_MM_TRAP_OLD_STATE;
+	state_t SUPPORT_MM_TRAP_NEW_STATE;
+
+	char io_buffer[512];
+} runnable_process_t;
+
+extern const runnable_process_t terminal_processes[MAXTPROC];
+
+// Cron table, semaphore, and related fields
+typedef struct cron_entry_t {
+	int sem;			
+	long wakeUpTime;
+} cron_entry_t;
+
+extern cron_entry_t CRON_TABLE[MAXTPROC];
+extern int cron_table_sem;
+
+// Global counter for active T-processes
+extern int active_t_processes;
 
 
 /*
@@ -27,6 +65,7 @@
 */
 void readfromterminal()
 {
+	//
 
 }
 
@@ -54,7 +93,45 @@ void writetoterminal()
 */
 void delay()
 {
+	// Get the delay from the CPU register D4
+	int delay = r4;
+	
+	// Get the current time of day;
+	long timeOfDay;
+	STCK(&timeOfDay);
 
+	// Calculate the wakeup time
+	long wakeUpTime = timeOfDay + delay;
+
+	// Capture the Cron Table sempahore to write this value 
+	vpop lockTableOperation;
+	lockTableOperation.op = LOCK;
+	lockTableOperation.sem = &cron_table_sem;
+	r4 = (int)&lockTableOperation;
+	DO_SEMOP();
+
+
+	// Get the Terminal Process index from the CPU state and update the Cron table
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
+
+	int term_idx = terminal_sys_new_state.s_r[4];
+	CRON_TABLE[term_idx].wakeUpTime = wakeUpTime;
+
+	// Block the calling process on the delay
+	vpop lockProcessOperation;
+	lockProcessOperation.op = LOCK;
+	lockProcessOperation.sem = &CRON_TABLE[term_idx].sem;
+	r4 = (int)&lockProcessOperation;
+	DO_SEMOP();
+
+
+	// Unlock the Cron table semaphore
+	vpop unlockTableOperation;
+	unlockTableOperation.op = UNLOCK;
+	unlockTableOperation.sem = &cron_table_sem;
+	r4 = (int)&unlockTableOperation;
+	DO_SEMOP();
 }
 
 
@@ -63,15 +140,12 @@ void delay()
 */
 void gettimeofday()
 {
-	// Interrupted T-Process state is saved in old_state (SYS)
-	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
-
-	// Get and time of day
+	// Get time of day
 	long timeOfDay;
 	STCK(&timeOfDay);
 
 	// Return value in D2
-	SYS_TRAP_OLD_STATE->s_r[2] = timeOfDay;
+	r2 = timeOfDay;
 }
 
 
@@ -83,5 +157,36 @@ void gettimeofday()
 */
 void terminate()
 {
+	// Decrease the number of active T-processes
+	active_t_processes--;
 
+	// No active processes, the Cron daemon will never need to run again
+	if (active_t_processes == 0) {
+		HALT();
+	}
+
+	// Otherwise there are still active processes and we can free the Segments and Pages allocated to this T-process
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
+	int term_idx = terminal_sys_new_state.s_r[4];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
+
+	// TODO ASK
+	sd_t* segmentOneDesc = &terminalProcess->user_mode_pd_table[1];
+	pd_t* userPageTable = segmentOneDesc->sd_pta;
+
+	// Segment is not allocated anymore
+	segmentOneDesc->sd_p = 0;
+	segmentOneDesc->sd_pta = NULL;
+
+	// Free the pages in the User Space Page table
+	int i;
+	for (i = 0; i < 32; i++) {
+		userPageTable[i].pd_p = 0;
+		userPageTable[i].pd_frame = -1;
+		//userPageTable[i].
+	}
+
+	//putframe();
+	//DO_KILLPROC();
 }

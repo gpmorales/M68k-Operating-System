@@ -10,11 +10,6 @@
 #include "./h/tconst.h"
 
 /*
-	This module coordinates the initalization of the support level, it services traps that are passed up, and it creates any necessary system processes.
-	It has the following functions : p1(), p1a(), slsyshandler(), slmmhandler(), slproghandler(), tprocess() and cron().
-*/
-
-/*
 	Execution Flow of the HOCA Memory Managment System:
 		- A user-mode T-process generates a Virtual Address with a segment number, page number, and offset.
 		- The segment number identifies a segment in virtual memory, part of the virtual address.
@@ -61,6 +56,7 @@
 #define KERNEL_PAGES 256
 
 // Kernel Routines
+#define DO_SEMOP			SYS1
 #define DO_CREATEPROC		SYS3
 #define DO_SPECTRAPVEC		SYS5
 #define	DO_WAITCLOCK		SYS7	/* delay on the clock semaphore */
@@ -122,7 +118,7 @@ typedef struct runnable_process_t {
 	pd_t user_mode_pd_table[32];					// The Page Table for Segment Entry 1 (user/private pages)
 	pd_t kernel_mode_pd_table[KERNEL_PAGES];		// The Page Table for Segment Entry 0 (kernel pages)
 
-	// Init states to point to the correspoinding function handlers, set MM on, and set the Stack (pg. 14)
+	// Stores the process old state and the appropiate trap handler state
 	state_t SUPPORT_SYS_TRAP_OLD_STATE;
 	state_t SUPPORT_SYS_TRAP_NEW_STATE;
 
@@ -146,8 +142,8 @@ const runnable_process_t terminal_processes[MAXTPROC];
 runnable_process_t system_cron_process;
 
 typedef struct cron_entry_t {
-	int semaphore;			
-	long wakeuptime;
+	int sem;			
+	long wakeUpTime;
 } cron_entry_t;
 
 
@@ -160,7 +156,7 @@ int cron_table_sem = 1;
 // Semaphore for exclusive access to Cron routine
 int wake_up_cron_sem = 0;
 
-// Misc TODO ASK
+// Global counter for active T-processes
 int active_t_processes = MAXTPROC;
 
 
@@ -180,7 +176,7 @@ void p1()
 	// RECALL: Multiple T-processes can enter the support level concurrently via SYS traps, 
 	// or MM traps that are handled using the memory space of page frames mapped by Segment 0 (Nucleus data)
 	// If these processes share the same stack space, concurrent modifications would occur overwriting crucial data
-	// Hence each T-process will get a SYS Trap stack -> Tsysstack[i] and a MM Trap stack -> Tmmstack[i]
+	// Hence each T-process will get a SYS/Prog Trap stack -> Tsysstack[i] and a MM Trap stack -> Tmmstack[i]
 	pageinit();
 
 
@@ -254,7 +250,8 @@ void p1()
 
 		int pgFrame;
 		for (pgFrame = 0; pgFrame < KERNEL_PAGES; pgFrame++) {
-			pd_t* kernelPageTable = terminalProcess->kernel_mode_pd_table;
+			// the Kernel Mode Page Table (maps Segment 0) from the Kernel SD Table
+			pd_t* kernelPageTable = terminalProcess->kernel_mode_sd_table[0].sd_pta;
 
 			// Each page descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
 			kernelPageTable[pgFrame].pd_frame = pgFrame;
@@ -347,8 +344,7 @@ void p1()
 
 
 	// Allocate page 31 in each T-process's user-mode page table (Segment 1) to load the bootcode.
-	// The bootcode initializes the user program by setting up trap vectors (SYS5s) 
-	// and then transfers control to the actual user code.
+	// The bootcode initializes the user program by setting up trap vectors (SYS5s) and then transfers control to the actual user code.
 	for (i = 0; i < MAXTPROC; i++) {
 		runnable_process_t* terminalProcess = &terminal_processes[i];
 
@@ -375,8 +371,8 @@ void p1()
 	// Initialize Cron Table semaphores and wake up times
 	int k;
 	for (k = 0; k < 20; k++) {
-		CRON_TABLE[k].semaphore = 0;	 // Process semaphore init to 0
-		CRON_TABLE[k].wakeuptime = -1;	 // Set Process wakeup time to -1 to signal no delay requested
+		CRON_TABLE[k].sem = 0;			// Process semaphore init to 0
+		CRON_TABLE[k].wakeUpTime = -1;	// Set Process wakeup time to -1 to signal no delay requested
 	}
 
 	// Create p1a process state
@@ -399,14 +395,6 @@ void p1()
 	This routine will execute the process will create T-processes in a loop that.
 	Each T-process will be in supervisor mode as it starts up because it has to do its SYS5’s, etc. In setting
 	up the states for the created T - processes, the root process should give each a disjoint stack. 
-
-	This can be done by setting the CRP register and also the SP register in the state of the created process:
-	<create a generic start state for T - processes>;
-	for (each terminal) {
-		< set the CRP to the Segment Table for this terminal in start state>;
-		< set SP to Tsysstack[terminal] in start state>;
-		<create process>;
-	}
 */
 void static p1a() 
 {
@@ -529,7 +517,7 @@ void static tprocess()
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_m = 1;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_int = 0;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_pc = (int)slmmhandler;
-	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sp = Tmmstack[term_idx];
+
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
 	r4 = (int)&terminalProcess->SUPPORT_MM_TRAP_NEW_STATE;
 
@@ -549,7 +537,8 @@ void static tprocess()
 	terminalProcessState.s_pc = (int)(0x80000 + PAGESIZE * 31);				// Bootcode location in Virtual memory
 	terminalProcessState.s_sp = (int)(0x80000 + PAGESIZE * 32) - 2;			// User stack location in Virtual memory
 
-	// Run the 'real' Terminal Process
+	// Run the 'real' Terminal Process and increment our active T-Process counter
+	active_t_processes++;
 	LDST(&terminalProcessState);
 }
 
@@ -566,7 +555,7 @@ void static tprocess()
 void static slmmhandler()
 {
 	// A Terminal Process requests more pages for Segment 1 (User/Private data)
-	// However since all Pages presence bits are off (0) initially, a Memory Managment Trap is thrown
+	// However since all Pages presence bits are off (0) initially (except Page Frame 31)(except Page Frame 31)(except Page Frame 31)(except Page Frame 31)(except Page Frame 31)(except Page Frame 31)(except Page Frame 31)(except Page Frame 31)(except Page Frame 31), a Memory Managment Trap is thrown
 
 	// Get the Terminal Process State when the Trap was thrown
 	state_t terminal_mm_new_state;
@@ -607,8 +596,7 @@ void static slmmhandler()
 		// Zero/initialize data isn't necessary as it will get overwritten when used
 	}
 	else {
-		// Access Protection Violation, sd.R or sd.W or sd.E is 0
-		// The Segment is missing / Page number is invalid
+		// Access Protection Violation, sd.R or sd.W or sd.E is 0 OR The Segment is missing OR Page number is invalid
 		DO_TTERMINATE();
 	}
 }
@@ -626,14 +614,21 @@ void static slsyshandler()
 	//  - A T-process executes a SYS instruction using a virtual address, causing a Trap (e.g., for I/O or delay).
 	//	- The trap is handled by the nucleus by trapsyshandler(), which saves the T-process's state in the SYS TRAP OLD AREA and then calls trapsysdefault()
 	//	- If the process has previously executed a SYS5 to install a trap vector :
-	//    -> The nucleus loads the "new state" from the SYS5 in trapsysdefault() - which will have the PC to syshandler()
+	//    -> The nucleus loads the "new state" from the SYS5 in trapsysdefault() - which will have the PC to syshandler() and the properties we defined in TPROCESS()
 	//	  -> Control is then transferred to this function (slsyshandler) in privileged mode.
 	//	- This function then looks at the syscall number and dispatches to the appropriate handler.
 
 	// Get the Terminal Process state when the Trap was thrown
-	state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
 
-    switch (SYS_TRAP_OLD_STATE->s_tmp.tmp_sys.sys_no) {
+	// Get the Terminal Process index from the CPU state
+	int term_idx = terminal_sys_new_state.s_r[4];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
+
+	// Recall that the Support SYS Trap Old Area address points to the process's 'old_sys_trap_state' after SYS5
+	// Then in trapsysdefault, we copy the SYS_TRAP_OLD_AREA into process->sys_trap_old_state which is equivalent to Support SYS Trap Old Area
+    switch (terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_tmp.tmp_sys.sys_no) {
         case (9):
 			readfromterminal();
             break;
@@ -661,36 +656,38 @@ void static slsyshandler()
 */
 void static slproghandler()
 {
-	terminate();
+	DO_TTERMINATE();
 }
 
 
 /*
-	Cron Daemon Routine:
 	This function releases processes which delayed themselves, and it shuts down if there are no
 	T-processes running. cron should be in an infinite loop and should block on the pseudoclock if there 
 	is no work to be done. If possible you should synchronize delay and cron, otherwise one point will be lost
 */
 void static cron()
 {
-	// Block the Cron process unconditionally once (In the future, the PC is maintainted preventing a deadlock)
-	vpop semOperation;
-	semOperation.op = LOCK;
-	semOperation.sem = &wake_up_cron_sem;
-	r4 = (int)&semOperation;
+	// Block the Cron process unconditionally once (In the future, the PC is maintained and the while loop below will prevent the execution of first SEMOP again)
+	vpop lockCronOperation;
+	lockCronOperation.op = LOCK;
+	lockCronOperation.sem = &wake_up_cron_sem;
+	r3 = 1;
+	r4 = (int)&lockCronOperation;
 	DO_SEMOP();
 
-	// Critical section where Cron job updates wakeup times and
+	// Critical section where Cron job releases sleeping process
 	while (1) {
+
+		// Terminate Cron if there are no t-processes running
 		if (active_t_processes == 0) {
 			DO_TTERMINATE();
 		}
 
-		// Allow only 1 process to capture semaphore
-		vpop tableOperation;
-		tableOperation.op = LOCK;
-		tableOperation.sem = &cron_table_sem;
-		r4 = (int)&tableOperation;
+		// Allow only 1 process to read/write the Cron table
+		vpop lockTableOperation;
+		lockTableOperation.op = LOCK;
+		lockTableOperation.sem = &cron_table_sem;
+		r4 = (int)&lockTableOperation;
 		DO_SEMOP();
 
 		// Check if there are any T-processes being delayed
@@ -698,19 +695,37 @@ void static cron()
 
 		int i;
 		for (i = 0; i < MAXTPROC; i++) {
-			if (CRON_TABLE[i].semaphore < 0) {
+			// Check if this process can be released
+			long currentTime = DO_GETTOD();
+
+			// At least one process has been delayed
+			if (CRON_TABLE[i].wakeUpTime != -1) {
 				delayedProcesses = TRUE;
-				break;
+			}
+
+			// Wake up this process if we have passed the wakeup time deadline
+			if (CRON_TABLE[i].wakeUpTime >= currentTime) {
+				vpop wakeUpOperation;
+				wakeUpOperation.op = UNLOCK;
+				wakeUpOperation.sem = &CRON_TABLE[i].sem;
+				r3 = 1;
+				r4 = (int)&wakeUpOperation;
+				DO_SEMOP();
 			}
 		}
+
+		// Release the Cron table semaphore to allow access to the table before we potentially block ourselves
+		vpop unlockTableOperation;
+		unlockTableOperation.op = UNLOCK;
+		unlockTableOperation.sem = &cron_table_sem;
+		r3 = 1;
+		r4 = (int)&unlockTableOperation;
+		DO_SEMOP();
 
 		// There are no delayed processes we could possibly release, block ourselves
 		if (!delayedProcesses) {
 			DO_WAITCLOCK();
 		}
 	}
-
-	// If there are processes to that are being delayed 
-
 }
 
