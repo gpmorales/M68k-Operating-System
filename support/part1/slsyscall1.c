@@ -22,6 +22,24 @@ register int r4 asm("%d4");
 
 #define KERNEL_PAGES 256
 
+/*
+	Virtual Addresses, I/O Buffers, and the MMU in Support Level Routines:
+	- Routines here run with privilege mode AND Memory Managment on which means
+	  All addresses used in C code are virtual when the MMU is on.
+	- Ex: BEGINDEVREG = 0x1400 is used as a virtual address, but...
+	- In the Kernel Mode Segment Table, Segment 0’s Page Table is set up to maps virtual pages 1:1 to physical pages.
+	- So Virtual Address 0x1400 = Physical Address 0x1400 via segment 0’s mapping.
+
+	Since I/O is done with device registers that live in restricted physical memory
+	having a priv mode and memory managment on is not suffice as we still need a way to reach this space with the correct Physical Address
+
+	Even though io_buffer lives in physical memory (support-level .data), when the MMU is on and you're running in privileged mode:
+	You access io_buffer using a virtual address
+
+	The segment 0 mapping in the Kernel Page Table makes sure:
+		- virtual address of io_buffer == physical address of io_buffer
+*/
+
 typedef struct runnable_process_t {
 	sd_t user_mode_sd_table[32];		
 	sd_t kernel_mode_sd_table[32];	
@@ -35,10 +53,8 @@ typedef struct runnable_process_t {
 	state_t SUPPORT_PROG_TRAP_NEW_STATE;
 	state_t SUPPORT_MM_TRAP_OLD_STATE;
 	state_t SUPPORT_MM_TRAP_NEW_STATE;
-
-	// IO devices can only handle Physical Addresses
-	// SYS10 (wrt to terminal) -> copy data from VA to PA/iobuffer -> call devreg on iobuffer -> waitforio by passing addresses to this field
 	char io_buffer[512];
+
 } runnable_process_t;
 
 extern const runnable_process_t terminal_processes[MAXTPROC];
@@ -81,7 +97,7 @@ void readfromterminal()
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
 	// Make the read request to the correct terminal device
-    devreg_t* terminal = (devreg_t*)BEGINDEVREG + term_idx;		// Get printer0's device register from memory
+    devreg_t* terminal = (devreg_t*)BEGINDEVREG + term_idx;		// Get terminal's device register from memory
     terminal->d_stat = DEVNOTREADY;								// Set status code to non 0 value as we prepare to request I/O
     terminal->d_dadd = 128;										// The size of the buffer (max 128 bytes)
     terminal->d_badd = terminalProcess->io_buffer;				// Buffer address stores the data we read from input
@@ -90,7 +106,6 @@ void readfromterminal()
 	// Block the process by calling waitforio
 	r4 = (int)&term_idx;
 	DO_WAITIO();
-
 
 	// Now the data has been stored in virtual address location and the operation is done
 	int terminalStatus = terminal->d_stat;
@@ -114,13 +129,48 @@ void readfromterminal()
 	has been written on the terminal associated with the process. The virtual address of
 	the first character of the line to be written will be in D3 at the time of the call. 
 	The count of the number of characters to be written will be in D4. The count of the
-	number of characters actually written should be placed in D2 upon completion of
+	number of characters ACTUALLY written should be placed in D2 upon completion of
 	the SYS10. As in SYS9, a non-successful completion status will cause an error flag
 	to be returned instead of the character count.
 */
 void writetoterminal()
 {
+	// TODO ASK
+	// Get the Terminal Process state and number in the loaded New State Area 
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
 
+	// Get the virtual address that will hold the data
+	char* virtualAddr = (char*)r3;
+	int length = (int)r4;
+
+	// Get the Terminal Process index from the CPU state
+	int term_idx = terminal_sys_new_state.s_r[4];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
+
+	// Copy the data from the virtual address to the phyiscal io_buffer
+	for (int i = 0; i < length; i++) {
+		terminalProcess->io_buffer[i] = virtualAddr[i];
+	}
+
+	// Make the write request to the correct terminal device
+    devreg_t* terminal = (devreg_t*)BEGINDEVREG + term_idx;		// Get terminal's device register from memory
+    terminal->d_stat = DEVNOTREADY;								// Set status code to non 0 value as we prepare to request I/O
+    terminal->d_dadd = length;									// The size of the data buffer we are writing
+    terminal->d_badd = terminalProcess->io_buffer;				// Buffer address stores the data we write to output
+    terminal->d_op = IOWRITE;									// Set the device operation status to WRITE (code 1)
+
+	// Block the process by calling waitforio
+	r4 = (int)&term_idx;
+	DO_WAITIO();
+
+	int terminalStatus = terminal->d_stat;
+	if (terminalStatus == NORMAL || terminalStatus == ENDOFINPUT) {
+		r2 = terminal->d_dadd;			// return number of bytes actually written
+	}
+	else {
+		r2 = -terminalStatus;			// error flag
+	}
 }
 
 
@@ -142,6 +192,10 @@ void delay()
 	// Calculate the wakeup time
 	long wakeUpTime = timeOfDay + delay;
 
+	// Get the Terminal Process index from the CPU state and update the Cron table
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
+
 	// Capture the Cron Table sempahore to write this value 
 	vpop lockTableOperation;
 	lockTableOperation.op = LOCK;
@@ -149,21 +203,18 @@ void delay()
 	r4 = (int)&lockTableOperation;
 	DO_SEMOP();
 
-	// Get the Terminal Process index from the CPU state and update the Cron table
-	state_t terminal_sys_new_state;
-	STST(&terminal_sys_new_state);
-
+	// Update the Cron Table entry with the the Wake Up Time (Non-accumulative)
 	int term_idx = terminal_sys_new_state.s_r[4];
 	CRON_TABLE[term_idx].wakeUpTime = wakeUpTime;
 
-	// Unlock the Cron table semaphore
+	// Unlock the Cron Table semaphore
 	vpop unlockTableOperation;
 	unlockTableOperation.op = UNLOCK;
 	unlockTableOperation.sem = &cron_table_sem;
 	r4 = (int)&unlockTableOperation;
 	DO_SEMOP();
 
-	// Now we can block the calling process, after releasing the the Cron table semaphore
+	// Remove the calling process off the Run Queue via SEMOP after release Cron Table semaphore
 	vpop lockProcessOperation;
 	lockProcessOperation.op = LOCK;
 	lockProcessOperation.sem = &CRON_TABLE[term_idx].sem;

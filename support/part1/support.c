@@ -644,9 +644,11 @@ void static slsyshandler()
 			terminate();
             break;
         default:
-			HALT(); // TODO ASK
             break;
     }
+
+	// Continue executing the process
+	LDST(&terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE);
 }
 
 
