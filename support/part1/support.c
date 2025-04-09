@@ -57,6 +57,7 @@
 
 // Kernel Routines
 #define DO_SEMOP			SYS1
+#define	DO_TERMINATEPROC	SYS2	/* terminate process */
 #define DO_CREATEPROC		SYS3
 #define DO_SPECTRAPVEC		SYS5
 #define	DO_WAITCLOCK		SYS7	/* delay on the clock semaphore */
@@ -110,6 +111,9 @@ void static tprocess();
 
 // Not used
 pd_t shared_pd_table[32];
+
+// Sem to protect free frame pointer in getfreeframe()
+int sem_mm = 1;
 
 typedef struct runnable_process_t {
 	sd_t user_mode_sd_table[32];		// Uses Segment Entry 1, 2. Segment 1 manages the user private pages (code, data, stack) for that process & Segmenet 2 manages shared pages
@@ -585,6 +589,14 @@ void static slmmhandler()
 			DO_TTERMINATE();
 		}
 
+		// Lock the sem_mm handler to access and modify page frame pointer
+		vpop lockPageFrameOperation;
+		lockPageFrameOperation.op = LOCK;
+		lockPageFrameOperation.sem = &sem_mm;
+		r3 = 1;
+		r4 = (int)&lockPageFrameOperation;
+		DO_SEMOP();
+
 		// Get the exact Page Descriptor entry if Page number is valid
 		pd_t* pageDesc = &terminalProcess->user_mode_sd_table[segmentNumber].sd_pta[pageNumber];
 
@@ -592,7 +604,15 @@ void static slmmhandler()
 		pageDesc->pd_frame = getfreeframe();
 		pageDesc->pd_p = 1; 
 
-		// Zero/initialize data isn't necessary as it will get overwritten when used
+		// Lock the sem_mm handler to access and modify page frame pointer
+		vpop unlockPageFrameOperation;
+		unlockPageFrameOperation.op = UNLOCK;
+		unlockPageFrameOperation.sem = &sem_mm;
+		r3 = 1;
+		r4 = (int)&unlockPageFrameOperation;
+		DO_SEMOP();
+
+		// Zero/initialize data isn't necessary as it will get overwritten when used again
 	}
 	else {
 		// Access Protection Violation, sd.R or sd.W or sd.E is 0 OR the Segment is missing OR Page number is invalid
@@ -679,20 +699,21 @@ void static cron()
 	// Critical section where Cron job releases sleeping/delayed process
 	while (1) {
 
-		// Terminate Cron if there are no t-processes running
+		// Terminate the cron daemon which will halt the nuclues if there are no other processes running
 		if (active_t_processes == 0) {
-			DO_TTERMINATE();
+			DO_TERMINATEPROC();
 		}
 
-		// Allow only 1 process to read/write the Cron table
+		// Allow only 1 process to read/write the Cron Table
 		vpop lockTableOperation;
 		lockTableOperation.op = LOCK;
 		lockTableOperation.sem = &cron_table_sem;
+		r3 = 1;
 		r4 = (int)&lockTableOperation;
 		DO_SEMOP();
 
-		// Check if there are any T-processes being delayed
-		int delayedProcesses = FALSE;
+		// Check if there are any T-processes that have been freed
+		int awokenProcesses = FALSE;
 
 		int i;
 		for (i = 0; i < MAXTPROC; i++) {
@@ -704,29 +725,40 @@ void static cron()
 				// P the device semaphore via SYS1 and reset the wakeup time
 				CRON_TABLE[i].wakeUpTime = -1;
 
-				// At least one process has been delayed
-				delayedProcesses = TRUE;
+				// The Cron job has awoken at least one process
+				awokenProcesses = TRUE;
 
-				// Prepare unlock/wakeup operation on delayed process
-				vpop wakeUpOperation;
-				wakeUpOperation.op = UNLOCK;
-				wakeUpOperation.sem = &CRON_TABLE[i].sem;
-				r3 = 1;
-				r4 = (int)&wakeUpOperation;
+				// Release the sleeping processes
+				vpop atomicSemOps[3];
+				atomicSemOps[0].op = UNLOCK;
+				atomicSemOps[0].sem = &CRON_TABLE[i].sem;
+
+				// 'Lock' Cron job as there is now one less resource for the Cron job to handle
+				atomicSemOps[1].op = LOCK;
+				atomicSemOps[1].sem = &wake_up_cron_sem;
+
+				// Release the Cron table semaphore to allow access to the table before we potentially block ourselves
+				atomicSemOps[2].op = UNLOCK;
+				atomicSemOps[2].sem = &cron_table_sem;
+
+				// Do semaphore unlock/wakeup operations
+				r3 = 3;
+				r4 = (int)&atomicSemOps;
 				DO_SEMOP();
 			}
 		}
 
-		// Release the Cron table semaphore to allow access to the table before we potentially block ourselves
-		vpop unlockTableOperation;
-		unlockTableOperation.op = UNLOCK;
-		unlockTableOperation.sem = &cron_table_sem;
-		r3 = 1;
-		r4 = (int)&unlockTableOperation;
-		DO_SEMOP();
+		// Cron did not wake up any delayed processes
+		if (!awokenProcesses) {
+			// Release the Cron Table semaphore 
+			vpop unlockTableOperation;
+			unlockTableOperation.op = UNLOCK;
+			unlockTableOperation.sem = &cron_table_sem;
+			r3 = 1;
+			r4 = (int)&unlockTableOperation;
+			DO_SEMOP();
 
-		// There are no delayed processes we could possibly release, block ourselves
-		if (!delayedProcesses) {
+			// Block Cron on the Pseudoclock semaphore
 			DO_WAITCLOCK();
 		}
 	}

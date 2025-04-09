@@ -13,6 +13,7 @@
 
 // Kernel Routines
 #define DO_SEMOP			SYS1
+#define	DO_TERMINATEPROC	SYS2	/* terminate process */
 #define	DO_WAITIO			SYS8	/* delay on a io semaphore */
 
 // Global CPU registers
@@ -67,6 +68,7 @@ typedef struct cron_entry_t {
 
 extern cron_entry_t CRON_TABLE[MAXTPROC];
 extern int cron_table_sem;
+extern int wake_up_cron_sem;
 
 // Global counter for active T-processes
 extern int active_t_processes;
@@ -99,7 +101,7 @@ void readfromterminal()
 	// Make the read request to the correct terminal device
     devreg_t* terminal = (devreg_t*)BEGINDEVREG + term_idx;		// Get terminal's device register from memory
     terminal->d_stat = DEVNOTREADY;								// Set status code to non 0 value as we prepare to request I/O
-    terminal->d_dadd = 128;										// The size of the buffer (max 128 bytes)
+    terminal->d_dadd = 512;										// The size of the buffer (max 128 bytes)
     terminal->d_badd = terminalProcess->io_buffer;				// Buffer address stores the data we read from input
     terminal->d_op = IOREAD;									// Set the device operation status to READ (code 0)
 
@@ -107,16 +109,30 @@ void readfromterminal()
 	r4 = (int)&term_idx;
 	DO_WAITIO();
 
-	// Now the data has been stored in virtual address location and the operation is done
+	// Now the data has been stored in virtual address location and the get the results of the operation when its done
 	int terminalStatus = terminal->d_stat;
-	int length = terminal->d_dadd;
+	int expectedLength = terminal->d_dadd;
+	int actualLength = r2;
 
-	if (terminalStatus == NORMAL) {
-		// Copy the data from the phyiscal buffer to the virtual address if hte operation completed successfully
-		for (int i = 0; i < length; i++) {
+	// Copy the data from the phyiscal buffer to the virtual address if the operation completed successfully
+	if (terminalStatus == ENDOFINPUT) {
+		// We read some amount of input but not the entire amount we defined in the iobuffer, 512
+		if (actualLength > 0) {
+			for (int i = 0; i < actualLength; i++) {
+				virtualAddr[i] = terminalProcess->io_buffer[i];
+			}
+			r2 = actualLength;
+		}
+		else {
+			r2 = -terminalStatus;
+		}
+	}
+	else if (terminalStatus == NORMAL) {
+		// In this case we read expected length bytes, so actual = expected
+		for (int i = 0; i < expectedLength; i++) { // TODO *
 			virtualAddr[i] = terminalProcess->io_buffer[i];
 		}
-		r2 = length;
+		r2 = actualLength;
 	}
 	else {
 		r2 = -terminalStatus;
@@ -135,7 +151,6 @@ void readfromterminal()
 */
 void writetoterminal()
 {
-	// TODO ASK
 	// Get the Terminal Process state and number in the loaded New State Area 
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
@@ -164,9 +179,13 @@ void writetoterminal()
 	r4 = (int)&term_idx;
 	DO_WAITIO();
 
+	// Get results of operation
 	int terminalStatus = terminal->d_stat;
+	int expectedLength = terminal->d_dadd;
+	int actualLength = r2;
+
 	if (terminalStatus == NORMAL || terminalStatus == ENDOFINPUT) {
-		r2 = terminal->d_dadd;			// return number of bytes actually written
+		r2 = actualLength;				// return number of bytes actually written
 	}
 	else {
 		r2 = -terminalStatus;			// error flag
@@ -196,10 +215,11 @@ void delay()
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
 
-	// Capture the Cron Table sempahore to write this value 
+	// Capture the Cron Table sempahore and update corresponding entry
 	vpop lockTableOperation;
 	lockTableOperation.op = LOCK;
 	lockTableOperation.sem = &cron_table_sem;
+	r3 = 1;
 	r4 = (int)&lockTableOperation;
 	DO_SEMOP();
 
@@ -207,18 +227,24 @@ void delay()
 	int term_idx = terminal_sys_new_state.s_r[4];
 	CRON_TABLE[term_idx].wakeUpTime = wakeUpTime;
 
-	// Unlock the Cron Table semaphore
-	vpop unlockTableOperation;
-	unlockTableOperation.op = UNLOCK;
-	unlockTableOperation.sem = &cron_table_sem;
-	r4 = (int)&unlockTableOperation;
-	DO_SEMOP();
+	// Unlock the Cron Table semaphore, block the calling process, and unlock the Cron daemon
+	vpop atomicSemOps[3];
 
-	// Remove the calling process off the Run Queue via SEMOP after release Cron Table semaphore
-	vpop lockProcessOperation;
-	lockProcessOperation.op = LOCK;
-	lockProcessOperation.sem = &CRON_TABLE[term_idx].sem;
-	r4 = (int)&lockProcessOperation;
+	// Update the cron table semaphore and block the calling process
+	atomicSemOps[1].op = LOCK;
+	atomicSemOps[1].sem = &CRON_TABLE[term_idx].sem;
+
+	// Unlock the Cron Table after updating the wake up time
+	atomicSemOps[0].op = UNLOCK;
+	atomicSemOps[0].sem = &cron_table_sem;
+
+	// Add a resource (V) since Cron has one more process to manage
+	atomicSemOps[2].op = UNLOCK;
+	atomicSemOps[2].sem = &wake_up_cron_sem;
+
+	// Make semops call
+	r3 = 3;
+	r4 = (int)&atomicSemOps;
 	DO_SEMOP();
 }
 
@@ -232,8 +258,14 @@ void gettimeofday()
 	long timeOfDay;
 	STCK(&timeOfDay);
 
-	// Return value in D2
-	r2 = timeOfDay;
+	// Get the Terminal Process index from the CPU state 
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
+
+	// Return the time of day in the old sys state
+	int term_idx = terminal_sys_new_state.s_r[4];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
+	terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = timeOfDay;
 }
 
 
@@ -248,27 +280,24 @@ void terminate()
 	// Decrease the number of active T-processes
 	active_t_processes--;
 
-	// No active processes, no reason for nucleus or support routines to continue execution
+	// No active processes, wake up cron which will call SYS2 and halt the nucleus
 	if (active_t_processes == 0) {
-		HALT();
+		vpop wakeUpCronOperation;
+		wakeUpCronOperation.op = UNLOCK;
+		wakeUpCronOperation.sem = &wake_up_cron_sem;
+		r3 = 1;
+		r4 = (int)&wakeUpCronOperation;
+		DO_SEMOP();
 	}
 
-	// TODO ASK
-	// Otherwise there are still active processes and we can free the Segments and Pages allocated to this T-process
+	// Otherwise there are still active processes and we can free Pages allocated to this T-process
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
-
 	int term_idx = terminal_sys_new_state.s_r[4];
-	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
 	// Free the pages from Segment 1 (User/Private data) 
-	pd_t* userPageTable = terminalProcess->user_mode_sd_table[1].sd_pta;
+	putframe(term_idx);
 
-	int i;
-	for (i = 0; i < 32; i++) {
-		userPageTable[i].pd_p = 0;				// Set presence bit off
-		userPageTable[i].pd_frame = 0;			// Set the page frame # to 0 to indicate it is not in use
-	}
-
-	//DO_KILLPROC();
+	// Kill Process
+	DO_TERMINATEPROC();
 }
