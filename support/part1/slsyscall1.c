@@ -120,10 +120,10 @@ void readfromterminal()
 			for (i = 0; i < actualLength; i++) {
 				virtualAddr[i] = terminalProcess->io_buffer[i];
 			}
-			r2 = actualLength;
+			terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = actualLength;
 		}
 		else {
-			r2 = -terminalStatus;
+			terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = -terminalStatus;
 		}
 	}
 	else if (terminalStatus == NORMAL) {
@@ -132,10 +132,10 @@ void readfromterminal()
 		for (i = 0; i < expectedLength; i++) {
 			virtualAddr[i] = terminalProcess->io_buffer[i];
 		}
-		r2 = actualLength;
+		terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = actualLength;
 	}
 	else {
-		r2 = -terminalStatus;
+		terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = -terminalStatus;
 	}
 }
 
@@ -171,13 +171,12 @@ void writetoterminal()
 
 	// Make the write request to the correct terminal device
     devreg_t* terminal = (devreg_t*)BEGINDEVREG + term_idx;		// Get terminal's device register from memory
-    terminal->d_stat = DEVNOTREADY;								// Set status code to non 0 value as we prepare to request I/O
     terminal->d_dadd = length;									// The size of the data buffer we are writing
     terminal->d_badd = terminalProcess->io_buffer;				// Buffer address stores the data we write to output
     terminal->d_op = IOWRITE;									// Set the device operation status to WRITE (code 1)
 
 	// Block the process by calling waitforio
-	r4 = (int)&term_idx;
+	r4 = term_idx;
 	DO_WAITIO();
 
 	// Get results of operation
@@ -185,11 +184,16 @@ void writetoterminal()
 	int expectedLength = terminal->d_dadd;
 	int actualLength = r2;
 
-	if (terminalStatus == NORMAL || terminalStatus == ENDOFINPUT) {
-		r2 = actualLength;				// return number of bytes actually written
+	if (terminalStatus == NORMAL) {
+		if (expectedLength == 0) {
+			terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = -ENDOFINPUT;
+		}
+		else {	// expected = actual
+			terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = expectedLength;	// return number of bytes actually written
+		}
 	}
 	else {
-		r2 = -terminalStatus;			// error flag
+		terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[2] = -terminalStatus;	// error flag
 	}
 }
 
@@ -202,19 +206,23 @@ void writetoterminal()
 */
 void delay()
 {
-	// Get the delay from the CPU register D4
-	int delay = r4;
-	
+	// Get the Terminal Process index from the CPU state and update the Cron table
+	state_t terminal_sys_new_state;
+	STST(&terminal_sys_new_state);
+
+	// Get the Terminal Process index from the CPU state
+	int term_idx = terminal_sys_new_state.s_r[4];
+	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
+
 	// Get the current time of day;
 	long timeOfDay;
 	STCK(&timeOfDay);
 
+	// Get the delay from the CPU register D4
+	int delay = terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[4];
+
 	// Calculate the wakeup time
 	long wakeUpTime = timeOfDay + delay;
-
-	// Get the Terminal Process index from the CPU state and update the Cron table
-	state_t terminal_sys_new_state;
-	STST(&terminal_sys_new_state);
 
 	// Capture the Cron Table sempahore and update corresponding entry
 	vpop lockTableOperation;
@@ -225,7 +233,6 @@ void delay()
 	DO_SEMOP();
 
 	// Update the Cron Table entry with the the Wake Up Time (Non-accumulative)
-	int term_idx = terminal_sys_new_state.s_r[4];
 	CRON_TABLE[term_idx].wakeUpTime = wakeUpTime;
 
 	// Unlock the Cron Table semaphore, block the calling process, and unlock the Cron daemon

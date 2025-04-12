@@ -170,7 +170,7 @@ int cron_table_sem = 1;
 int wake_up_cron_sem = 0;
 
 // Global counter for active T-processes
-int active_t_processes = MAXTPROC;
+int active_t_processes = 0;
 
 
 /*
@@ -627,7 +627,8 @@ void static slmmhandler()
 
 		// Zero/initialize data isn't necessary as it will get overwritten when used again
 
-		// TODO load old state
+		// Load the old mm trap state
+		LDST(&terminalProcess->SUPPORT_MM_TRAP_OLD_STATE);
 	}
 	else {
 		// Access Protection Violation, sd.R or sd.W or sd.E is 0 OR the Segment is missing OR Page number is invalid
