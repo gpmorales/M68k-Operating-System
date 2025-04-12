@@ -12,8 +12,8 @@
 
 
 // Kernel Routines
-#define DO_SEMOP			SYS1
 #define	DO_TERMINATEPROC	SYS2	/* terminate process */
+#define DO_SEMOP			SYS3
 #define	DO_WAITIO			SYS8	/* delay on a io semaphore */
 
 // Global CPU registers
@@ -58,7 +58,7 @@ typedef struct runnable_process_t {
 
 } runnable_process_t;
 
-extern const runnable_process_t terminal_processes[MAXTPROC];
+extern runnable_process_t terminal_processes[MAXTPROC];
 
 // Cron table, semaphore, and related fields
 typedef struct cron_entry_t {
@@ -91,34 +91,33 @@ void readfromterminal()
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
 
-	// Get the virtual address that will act as our buffer
-	char* virtualAddr = (char*)r3;
-
 	// Get the Terminal Process index from the CPU state
 	int term_idx = terminal_sys_new_state.s_r[4];
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
+	// Get the virtual address that will act as our buffer
+	char* virtualAddr = (char*)terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[3];
+
 	// Make the read request to the correct terminal device
     devreg_t* terminal = (devreg_t*)BEGINDEVREG + term_idx;		// Get terminal's device register from memory
-    terminal->d_stat = DEVNOTREADY;								// Set status code to non 0 value as we prepare to request I/O
-    terminal->d_dadd = 512;										// The size of the buffer (max 128 bytes)
     terminal->d_badd = terminalProcess->io_buffer;				// Buffer address stores the data we read from input
     terminal->d_op = IOREAD;									// Set the device operation status to READ (code 0)
 
 	// Block the process by calling waitforio
-	r4 = (int)&term_idx;
+	r4 = term_idx;
 	DO_WAITIO();
 
 	// Now the data has been stored in virtual address location and the get the results of the operation when its done
 	int terminalStatus = terminal->d_stat;
-	int expectedLength = terminal->d_dadd;
 	int actualLength = r2;
+	int expectedLength = terminal->d_dadd;
 
 	// Copy the data from the phyiscal buffer to the virtual address if the operation completed successfully
 	if (terminalStatus == ENDOFINPUT) {
 		// We read some amount of input but not the entire amount we defined in the iobuffer, 512
 		if (actualLength > 0) {
-			for (int i = 0; i < actualLength; i++) {
+			int i;
+			for (i = 0; i < actualLength; i++) {
 				virtualAddr[i] = terminalProcess->io_buffer[i];
 			}
 			r2 = actualLength;
@@ -129,7 +128,8 @@ void readfromterminal()
 	}
 	else if (terminalStatus == NORMAL) {
 		// In this case we read expected length bytes, so actual = expected
-		for (int i = 0; i < expectedLength; i++) { // TODO *
+		int i;
+		for (i = 0; i < expectedLength; i++) {
 			virtualAddr[i] = terminalProcess->io_buffer[i];
 		}
 		r2 = actualLength;
@@ -155,16 +155,17 @@ void writetoterminal()
 	state_t terminal_sys_new_state;
 	STST(&terminal_sys_new_state);
 
-	// Get the virtual address that will hold the data
-	char* virtualAddr = (char*)r3;
-	int length = (int)r4;
-
 	// Get the Terminal Process index from the CPU state
 	int term_idx = terminal_sys_new_state.s_r[4];
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
+	// Get the virtual address that will hold the data
+	char* virtualAddr = (char*)terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[3];
+	int length = (int)terminalProcess->SUPPORT_SYS_TRAP_OLD_STATE.s_r[4];
+
 	// Copy the data from the virtual address to the phyiscal io_buffer
-	for (int i = 0; i < length; i++) {
+	int i;
+	for (i = 0; i < length; i++) {
 		terminalProcess->io_buffer[i] = virtualAddr[i];
 	}
 

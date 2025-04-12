@@ -87,6 +87,9 @@ state_t* CLOCK_INTERRUPT_OLD_STATE;
 void waitforpclock();
 void waitforio();
 
+/* Misc routines */
+void myprint(char*);
+
 /* Interrupt Handlers */
 void static intterminalhandler();
 void static intprinterhandler();
@@ -240,7 +243,7 @@ void static inthandler(int deviceIndex)
         proc_t* process = headBlocked(&deviceSemaphores[deviceIndex]);
 
         // The device registers are stored in memory, accessible and indexable with our deviceRegisters arr
-        // TODO wait-for-io also stores these values, return them
+        // wait-for-io also stores these values, return them
 		process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd; // length
         process->p_s.s_r[3] = deviceRegisters[deviceIndex]->d_stat; // status
 

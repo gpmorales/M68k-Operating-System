@@ -56,9 +56,9 @@
 #define KERNEL_PAGES 256
 
 // Kernel Routines
-#define DO_SEMOP			SYS1
+#define DO_CREATEPROC		SYS1
 #define	DO_TERMINATEPROC	SYS2	/* terminate process */
-#define DO_CREATEPROC		SYS3
+#define DO_SEMOP			SYS3
 #define DO_SPECTRAPVEC		SYS5
 #define	DO_WAITCLOCK		SYS7	/* delay on the clock semaphore */
 
@@ -99,6 +99,16 @@ extern int end();
 void static p1a();
 void static cron();
 void static tprocess();
+void static slsyshandler();
+void static slmmhandler();
+void static slproghandler();
+
+// Support Level SYS calls
+void readfromterminal();
+void writetoterminal();
+void delay();
+void gettimeofday();
+void terminate();
 
 #define START_SUPPORT_TEXT ((int)startt1 / PAGESIZE)
 #define END_SUPPORT_TEXT ((int)etext / PAGESIZE)
@@ -107,7 +117,6 @@ void static tprocess();
 #define START_SUPPORT_BSS ((int)startb1 / PAGESIZE)
 #define END_SUPPORT_BSS ((int)end / PAGESIZE)
 #define START_DEVICE_REG ((int)BEGINDEVREG / PAGESIZE)
-#define END_DEVICE_REG ((int)((devreg_t*)BEGINDEVREG + 5) / PAGESIZE)
 
 // Not used
 pd_t shared_pd_table[32];
@@ -139,7 +148,7 @@ typedef struct runnable_process_t {
 } runnable_process_t;
 
 // Terminal Process Table
-const runnable_process_t terminal_processes[MAXTPROC];
+runnable_process_t terminal_processes[MAXTPROC];
 
 
 // Cron Daemon process, struct, semaphores, and fields
@@ -259,12 +268,12 @@ void p1()
 			// Each page descriptor maps exactly One-to-One with each Page Frame in Phyiscal Memory since those pages are allocated in a predefined order
 			kernelPageTable[pgFrame].pd_frame = pgFrame;
 
-			// Check if this page frame corresponds to SEG0 (Page 2), if so set presence bit ON
+			// Check if this page frame corresponds to Page 2 of Segment 0 (EVT/INTERRUPT AREAS), if so set presence bit ON
 			if (pgFrame == 2) {
 				kernelPageTable[pgFrame].pd_p = 1;	// Mark page frame as present
 			}
 			// Check if this page frame corresponds to the DEVICE REGISTERS AREA
-			else if (pgFrame >= START_DEVICE_REG && pgFrame <= END_DEVICE_REG) {
+			else if (pgFrame == START_DEVICE_REG) {
 				kernelPageTable[pgFrame].pd_p = 1;
 			}
 			// Check if this page frame corresponds to SUPPORT TEXT
@@ -299,7 +308,7 @@ void p1()
 
 	// The code and data for system processes will reside in Segment 0 with the nucleus
 	// Set the Page Table address for Segment 0 to the Kernel Mode Page table
-	system_cron_process.kernel_mode_sd_table[0].sd_pta = &system_cron_process.kernel_mode_pd_table;
+	system_cron_process.kernel_mode_sd_table[0].sd_pta = system_cron_process.kernel_mode_pd_table;
 
 	// Init Segment 0 of the Privileged Mode Segment Table with Presence bit, Access Protection bits, and Page Table length
 	system_cron_process.kernel_mode_sd_table[0].sd_p = 1;
@@ -346,7 +355,7 @@ void p1()
 	}
 
 
-	// Allocate page 31 in each T-process's user-mode page table (Segment 1) to load the bootcode.
+	// Allocate page 31 in each T-process's user-mode page table (Segment 1) to have the bootcode.
 	// The bootcode initializes the user program by setting up trap vectors (SYS5s) and then transfers control to the actual user code.
 	for (i = 0; i < MAXTPROC; i++) {
 		runnable_process_t* terminalProcess = &terminal_processes[i];
@@ -361,21 +370,22 @@ void p1()
 		}
 
 		// Allocate a free page frame for this process
+		userPageTable[31].pd_p = 1;
 		userPageTable[31].pd_frame = getfreeframe(i, 31, 1);
 
 		// Load the boot code into this Page Frame by using physical address
 		int* pageStart = (int*)(userPageTable[31].pd_frame * PAGESIZE);
 		int j;
-		for (j = 0; j < 10; j++) {
+		for (j = 0; j < 11; j++) {
 			*(pageStart + j) = bootcode[j];
 		}
 	}
 
 	// Initialize Cron Table semaphores and wake up times
-	int k;
-	for (k = 0; k < 20; k++) {
-		CRON_TABLE[k].sem = 0;			// Process semaphore init to 0
-		CRON_TABLE[k].wakeUpTime = -1;	// Set Process wakeup time to -1 to signal no delay requested
+	int o;
+	for (o = 0; o < MAXTPROC; o++) {
+		CRON_TABLE[o].sem = 0;			// Process semaphore init to 0
+		CRON_TABLE[o].wakeUpTime = -1;	// Set Process wakeup time to -1 to signal no delay requested
 	}
 
 	// Create p1a process state
@@ -387,10 +397,10 @@ void p1()
 	p1aState.s_sp = Scronstack;		// Set the stack pointer to the Cron deamon stack address in the Stack's segment
 
 	// Set CPU Root Pointer to the (only) Kernel Mode Segment Table of the Cron daemon
-	p1aState.s_crp = &system_cron_process.kernel_mode_sd_table;		
+	p1aState.s_crp = system_cron_process.kernel_mode_sd_table;		
 
 	// Load p1a process
-	LDST(&p1a);
+	LDST(&p1aState);
 }
 
 
@@ -520,7 +530,7 @@ void static tprocess()
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_m = 1;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sr.ps_int = 0;
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_pc = (int)slmmhandler;
-
+	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_sp = Tmmstack[term_idx];
 	terminalProcess->SUPPORT_MM_TRAP_NEW_STATE.s_crp = terminalProcess->kernel_mode_sd_table;
 	r4 = (int)&terminalProcess->SUPPORT_MM_TRAP_NEW_STATE;
 
@@ -569,7 +579,7 @@ void static slmmhandler()
 	runnable_process_t* terminalProcess = &terminal_processes[term_idx];
 
 	// Get the Segment number/entry and Page Number
-	tmp_t temp_mm = terminal_mm_new_state.s_tmp;
+	tmp_t temp_mm = terminalProcess->SUPPORT_MM_TRAP_OLD_STATE.s_tmp;
 	unsigned trapType = temp_mm.tmp_mm.mm_typ;
 	int pageNumber = temp_mm.tmp_mm.mm_pg;
 	int segmentNumber = temp_mm.tmp_mm.mm_seg;
@@ -589,6 +599,12 @@ void static slmmhandler()
 			DO_TTERMINATE();
 		}
 
+		// Get the exact Page Descriptor entry if Page number is valid
+		pd_t* pageDesc = &terminalProcess->user_mode_sd_table[segmentNumber].sd_pta[pageNumber];
+
+		// Get the free frame value
+		int freeFrame = getfreeframe();
+
 		// Lock the sem_mm handler to access and modify page frame pointer
 		vpop lockPageFrameOperation;
 		lockPageFrameOperation.op = LOCK;
@@ -597,11 +613,8 @@ void static slmmhandler()
 		r4 = (int)&lockPageFrameOperation;
 		DO_SEMOP();
 
-		// Get the exact Page Descriptor entry if Page number is valid
-		pd_t* pageDesc = &terminalProcess->user_mode_sd_table[segmentNumber].sd_pta[pageNumber];
-
 		// Allocate a free Page Frame for this Page Descriptor and mark it as present
-		pageDesc->pd_frame = getfreeframe();
+		pageDesc->pd_frame = freeFrame;
 		pageDesc->pd_p = 1; 
 
 		// Lock the sem_mm handler to access and modify page frame pointer
@@ -613,6 +626,8 @@ void static slmmhandler()
 		DO_SEMOP();
 
 		// Zero/initialize data isn't necessary as it will get overwritten when used again
+
+		// TODO load old state
 	}
 	else {
 		// Access Protection Violation, sd.R or sd.W or sd.E is 0 OR the Segment is missing OR Page number is invalid
@@ -652,7 +667,7 @@ void static slsyshandler()
 			readfromterminal();
             break;
         case (10):
-			writefromterminal();
+			writetoterminal();
             break;
         case (13):
 			delay();
