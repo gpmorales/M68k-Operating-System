@@ -35,3 +35,5 @@ ipch/
 *.sarif
 
 *.xml
+
+Hoca.*
