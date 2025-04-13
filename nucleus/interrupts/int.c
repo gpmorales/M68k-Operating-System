@@ -179,7 +179,7 @@ void waitforpclock()
     // Grab the interrupted process's state 
     state_t* SYS_TRAP_OLD_STATE = (state_t*)0x930;
 
-	// Update the process's current processor state as it will be blocked and its state will need to be reloaded later
+    // Update the process's current processor state as it will be blocked and its state will need to be reloaded later
     process->p_s = *SYS_TRAP_OLD_STATE;
 
     // Perform the LOCK operation on the pseudo-clock and switch execution flow
@@ -211,8 +211,8 @@ void waitforio()
 
     // In the case where the device interrupt has NOT occured, BLOCK on that device's semaphore until we recieve the interrupt (V op)
     if (deviceSemaphores[deviceNumber] <= 0) {
-		// Update the process's current processor state as it will be blocked and its state will need to be reloaded later
-		process->p_s = *SYS_TRAP_OLD_STATE;
+        // Update the process's current processor state as it will be blocked and its state will need to be reloaded later
+        process->p_s = *SYS_TRAP_OLD_STATE;
         intsemop(&deviceSemaphores[deviceNumber], LOCK);
     }
     // Otherwise the interrupt has already occured which happens on a V (+1) operation, so this semahpore's value is 1
@@ -244,7 +244,7 @@ void static inthandler(int deviceIndex)
 
         // The device registers are stored in memory, accessible and indexable with our deviceRegisters arr
         // wait-for-io also stores these values, return them
-		process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd; // length
+        process->p_s.s_r[2] = deviceRegisters[deviceIndex]->d_dadd; // length
         process->p_s.s_r[3] = deviceRegisters[deviceIndex]->d_stat; // status
 
         // Unblock the waiting process by performing a V (+1) operation
@@ -255,7 +255,7 @@ void static inthandler(int deviceIndex)
         // The device’s Status register constitute the I/O operation completion status, and has already been stored by nucleus (deviceRegisters). 
         // Update this devices completion stats's Status and Length register so we can return it in waitforio
         deviceCompletionStats[deviceIndex].status = deviceRegisters[deviceIndex]->d_stat;
-		deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
+        deviceCompletionStats[deviceIndex].length = deviceRegisters[deviceIndex]->d_dadd;
 
         // Increment the semaphore value to indicate the interrupt already occured
         deviceSemaphores[deviceIndex]++;
@@ -275,8 +275,8 @@ void intdeadlock()
         // Call intschedule to prepare a timer interrupt to invoke intclockhandler to load the next process on the RQ
         intschedule();
 
-		// Halt the CPU while we wait for this device's interrupt to occur 
-		sleep();
+        // Halt the CPU while we wait for this device's interrupt to occur 
+        sleep();
     }
 
     // In case where we are waiting for devices to send an interrupt as indication for the completion of some operation
@@ -284,7 +284,7 @@ void intdeadlock()
     for (i = 0; i < TOTAL_DEVICES; i++) {
         // if any process is blocked on an I/O semaphore, sleep so the CPU can conserve resources
         if (headBlocked(&deviceSemaphores[i]) != (proc_t*)ENULL) {
-			// Halt the CPU while we wait for this device's interrupt to occur 
+            // Halt the CPU while we wait for this device's interrupt to occur 
             sleep();
         }
     }
@@ -317,14 +317,14 @@ void static intclockhandler()
 
     // Perform Round robin, remove process at head and add it to tail of RQ
     if (process != (proc_t*)ENULL) {
-		// Update the running process's state before we load next process on CPU
+        // Update the running process's state before we load next process on CPU
         removeProc(&readyQueue);
         updateTotalTimeOnProcessor(process);
-		process->p_s = *CLOCK_INTERRUPT_OLD_STATE;
+        process->p_s = *CLOCK_INTERRUPT_OLD_STATE;
         insertProc(&readyQueue, process);
     }
 
-	// Check how much time has passed on the pseudo-clock and unblock the first sleeping process on the pseudo clock semaphore if possible
+    // Check how much time has passed on the pseudo-clock and unblock the first sleeping process on the pseudo clock semaphore if possible
     if (PSEUDO_CLOCK >= 100000) {
         if (headBlocked(&PSEUDO_CLOCK_SEMAPHORE) != (proc_t*)ENULL) {
             intsemop(&PSEUDO_CLOCK_SEMAPHORE, UNLOCK);
@@ -333,7 +333,7 @@ void static intclockhandler()
     }
 
     // This call primes the Interval Timer to throw an interrupt when the RQ is NOT empty, triggering a round robin pre-emption cycle
-	schedule();
+    schedule();
 }
 
 
@@ -353,7 +353,7 @@ void static intterminalhandler()
     // This adds the process that was blocked on this device's IO resource back to the RQ
     inthandler(deviceNumber);
 
-	// If the RQ was not empty when the interrupt occured, continue executing the current process
+    // If the RQ was not empty when the interrupt occured, continue executing the current process
     if (process != (proc_t*)ENULL) {
         LDST(TERM_INTERRUPT_OLD_STATE);
     }
@@ -377,7 +377,7 @@ void static intprinterhandler()
     // This adds the process that was blocked on this device's IO resource back to the RQ
     inthandler(deviceNumber + 5);
 
-	// If the RQ was not empty when the interrupt occured, continue executing the current process
+    // If the RQ was not empty when the interrupt occured, continue executing the current process
     if (process != (proc_t*)ENULL) {
         LDST(PRINTER_INTERRUPT_OLD_STATE);
     }
@@ -401,7 +401,7 @@ void static intdiskhandler()
     // This adds the process that was blocked on this device's IO resource back to the RQ
     inthandler(deviceNumber + 7);
 
-	// If the RQ was not empty when the interrupt occured, continue executing the current process
+    // If the RQ was not empty when the interrupt occured, continue executing the current process
     if (process != (proc_t*)ENULL) {
         LDST(DISK_INTERRUPT_OLD_STATE);
     }
@@ -425,7 +425,7 @@ void static intfloppyhandler()
     // This adds the process that was blocked on this device's IO resource back to the RQ
     inthandler(deviceNumber + 11);
 
-	// If the RQ was not empty when the interrupt occured, continue executing the current process
+    // If the RQ was not empty when the interrupt occured, continue executing the current process
     if (process != (proc_t*)ENULL) {
         LDST(FLOPPY_INTERRUPT_OLD_STATE);
     }

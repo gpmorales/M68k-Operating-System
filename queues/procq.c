@@ -125,7 +125,7 @@ proc_t* outProc(proc_link* tp, proc_t* p)
 
     // For single element process queue where the head is our target process
     if (p == headProc) {
-		return removeProc(tp);
+        return removeProc(tp);
     }
 
     // Search queue for given process
@@ -246,16 +246,16 @@ void initProc()
         // Set the current nodes next to the next process in the table
         resetProcess(&procTable[i]);
 
-		// Remove all processor states
-		procTable[i].mm_trap_old_state = (state_t*)ENULL;
-		procTable[i].mm_trap_new_state = (state_t*)ENULL;
-		procTable[i].sys_trap_old_state = (state_t*)ENULL;
-		procTable[i].sys_trap_new_state = (state_t*)ENULL;
-		procTable[i].prog_trap_old_state = (state_t*)ENULL;
-		procTable[i].prog_trap_new_state = (state_t*)ENULL;
+        // Remove all processor states
+        procTable[i].mm_trap_old_state = (state_t*)ENULL;
+        procTable[i].mm_trap_new_state = (state_t*)ENULL;
+        procTable[i].sys_trap_old_state = (state_t*)ENULL;
+        procTable[i].sys_trap_new_state = (state_t*)ENULL;
+        procTable[i].prog_trap_old_state = (state_t*)ENULL;
+        procTable[i].prog_trap_new_state = (state_t*)ENULL;
 
         if (i != 19) {
-			procTable[i].p_link[FREE_LIST].next = &procTable[i + 1];
+            procTable[i].p_link[FREE_LIST].next = &procTable[i + 1];
         }
     }
 }
@@ -286,14 +286,14 @@ void resetProcess(proc_t* p)
     // Process does not belong to any queues
     p->qcount = 0;
 
-	// The of processor time used by this process is 0
+    // The of processor time used by this process is 0
     p->total_processor_time = 0;
     p->last_start_time = 0;
 
     // Remove all progeny links
-	p->parent_proc = (proc_t*)ENULL;
-	p->sibling_proc = (proc_t*)ENULL;
-	p->children_proc = (proc_t*)ENULL;
+    p->parent_proc = (proc_t*)ENULL;
+    p->sibling_proc = (proc_t*)ENULL;
+    p->children_proc = (proc_t*)ENULL;
 
     // Remove any semaphores or proc links associated with this proc_t entry
     int i;

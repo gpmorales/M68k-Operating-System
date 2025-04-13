@@ -111,20 +111,20 @@ proc_t* outBlocked(proc_t* p)
         // Attempt to remove the given process from this ASL entry's proc queue
         proc_link* tp = &semaphoreDescriptor->s_link;
         int* semAddr = semaphoreDescriptor->s_semAdd;
-		semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
+        semd_t* nextSemaphoreDescriptor = semaphoreDescriptor->s_next; 
 
-		int wasRemoved = outProc(tp, p) != (proc_t*)ENULL ? 1 : 0;
+        int wasRemoved = outProc(tp, p) != (proc_t*)ENULL ? 1 : 0;
 
-		// Remove this semaphore from the process's semvac vector
+        // Remove this semaphore from the process's semvac vector
         if (wasRemoved) {
             // We found and removed p from this semaphores's queue
             *semAddr = *semAddr + 1;
-			processRemovedAtLeastOnce = TRUE;
+            processRemovedAtLeastOnce = TRUE;
 
             // Remove semAddr from the process's semvec[]
-			removeSemaphoreFromProcessVector(semAddr, p);
+            removeSemaphoreFromProcessVector(semAddr, p);
 
-			// If this Active Semaphore's process queue becomes empty, remove it from the ASL and put the semd back on the free list
+            // If this Active Semaphore's process queue becomes empty, remove it from the ASL and put the semd back on the free list
             if (tp->next == (proc_t*)ENULL) {
                 removeSemaphoreFromActiveList(semaphoreDescriptor);
             }
@@ -147,11 +147,11 @@ proc_t* headBlocked(int* semAddr)
     semd_t* semaphoreDescriptor = getSemaphoreFromActiveList(semAddr);
 
     if (semaphoreDescriptor != (semd_t*)ENULL && semaphoreDescriptor->s_link.next != (proc_t*)ENULL) {
-		return headQueue(semaphoreDescriptor->s_link);
+        return headQueue(semaphoreDescriptor->s_link);
     }
 
     // There is no semaphore descriptor associated with this address or list is empty
-	return (proc_t*)ENULL;
+    return (proc_t*)ENULL;
 }
 
 
@@ -168,12 +168,12 @@ void initSemd()
 
     int i;
     for (i = 1; i < MAXPROC - 1; i++) {
-		semdTable[i].s_next = &semdTable[i + 1];
-		semdTable[i].s_prev = &semdTable[i - 1];
+        semdTable[i].s_next = &semdTable[i + 1];
+        semdTable[i].s_prev = &semdTable[i - 1];
     }
 
     semdTable[MAXPROC - 1].s_next = (semd_t*)ENULL;
-	semdTable[MAXPROC - 1].s_prev = &semdTable[MAXPROC - 2];
+    semdTable[MAXPROC - 1].s_prev = &semdTable[MAXPROC - 2];
 
     // Null terminate the free list
     semd_h = (semd_t*)ENULL;
@@ -353,7 +353,7 @@ void returnSemaphoreToFreeList(semd_t* s)
         return;
     }
 
-	resetSemaphore(s);
+    resetSemaphore(s);
 
     //  When the free list is empty, let s be the first element
     s->s_next = semdFree_h;

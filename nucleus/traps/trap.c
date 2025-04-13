@@ -55,8 +55,8 @@ void updateLastStartTime(proc_t* p);
     When a trap/exception occurs, the hardware auto-saves the interrupted process state to
     the designated trap's old state area (0x800, 0x900, 0x930)
 
-	XX_TRAP_OLD_STATE -> state of the process when it threw a trap of type XX
-	XX_TRAP_NEW_STATE -> trap handler process state along with registers, PC, SP, etc. needed to execute the handler routine
+    XX_TRAP_OLD_STATE -> state of the process when it threw a trap of type XX
+    XX_TRAP_NEW_STATE -> trap handler process state along with registers, PC, SP, etc. needed to execute the handler routine
 
     Only SYS1-SYS8 are handled by routines defined in the nucleus. The other SYS routines (SYS9-SYS17) are passed up to trapsysdefault
 */
@@ -71,7 +71,7 @@ void static trapsyshandler()
         // Update the system trap old state struct -> prog trap type
         SYS_TRAP_OLD_STATE->s_tmp.tmp_pr.pr_typ = PRIVILEGE;
 
-		// The process's old state area has been initialized and the appropiate new prog handler is present in the process's new prog area
+        // The process's old state area has been initialized and the appropiate new prog handler is present in the process's new prog area
         if (process->prog_trap_new_state != (state_t*)ENULL && process->prog_trap_old_state != (state_t*)ENULL) {
             // Update process start time as we load it unto the CPU
             updateLastStartTime(process);
@@ -83,7 +83,7 @@ void static trapsyshandler()
             LDST(process->prog_trap_new_state);
         } 
         else {
-			// No handler address the PTE for this trap or area to store its previous state
+            // No handler address the PTE for this trap or area to store its previous state
             killproc();
         }
     }
@@ -133,7 +133,7 @@ void static trapmmhandler()
     // Grab the interrupted process from the RQ
     proc_t* process = headQueue(readyQueue);
 
-	// The process's old state area has been initialized and the appropiate new mm handler is present in the process's new mm area
+    // The process's old state area has been initialized and the appropiate new mm handler is present in the process's new mm area
     if (process->mm_trap_new_state != (state_t*)ENULL && process->mm_trap_old_state != (state_t*)ENULL) {
         // Update process start time as we load it unto the CPU
         updateLastStartTime(process);
@@ -145,7 +145,7 @@ void static trapmmhandler()
         LDST(process->mm_trap_new_state);
     }
     else {
-		// No handler address in the PTE for this trap or area to store its previous state
+        // No handler address in the PTE for this trap or area to store its previous state
         killproc(process);
     }
 }
@@ -159,7 +159,7 @@ void static trapproghandler()
     // Grab the interrupted process from the RQ
     proc_t* process = headQueue(readyQueue);
 
-	// The process's old state area has been initialized and the appropiate new prog handler is present in the process's new prog area
+    // The process's old state area has been initialized and the appropiate new prog handler is present in the process's new prog area
     if (process->prog_trap_new_state != (state_t*)ENULL && process->prog_trap_old_state != (state_t*)ENULL) {
         // Update process start time as we load it unto the CPU
         updateLastStartTime(process);
@@ -171,7 +171,7 @@ void static trapproghandler()
         LDST(process->prog_trap_new_state);
     } 
     else {
-		// No handler address in the PTE for this trap or area to store its previous state
+        // No handler address in the PTE for this trap or area to store its previous state
         killproc();
     }
 }
