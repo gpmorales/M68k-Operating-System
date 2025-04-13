@@ -61,8 +61,6 @@ Features:
 - Cron and daemon processes run in privileged mode and manage background tasks like waking delayed processes or swapping memory pages.
 - The system ensures modularity between kernel (nucleus), user-level support, and hardware-level operations.
 
----
-
 ## Build & Run
 
 Hoca OS is designed to run inside an emulator like `emacsim`.
