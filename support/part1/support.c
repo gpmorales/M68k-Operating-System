@@ -734,7 +734,8 @@ void static cron()
 		int i;
 		for (i = 0; i < MAXTPROC; i++) {
 			// Check if this process can be released
-			long currentTime = DO_GETTOD();
+			long currentTime;
+			STCK(&currentTime);
 
 			// Wake up this process if we have passed the wakeup time deadline
 			if (CRON_TABLE[i].wakeUpTime != -1 && CRON_TABLE[i].wakeUpTime <= currentTime) {
